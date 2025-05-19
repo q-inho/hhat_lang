@@ -219,6 +219,8 @@ class Stack(BaseStack):
 
 
 class BaseHeap(ABC):
+    # TODO: modify if to account for scope heap
+
     _data: dict[Symbol, BaseDataContainer]
 
     @abstractmethod
@@ -234,6 +236,8 @@ class BaseHeap(ABC):
 
 
 class Heap(BaseHeap):
+    # TODO: it must be used for scopes
+
     def __init__(self):
         self._data = dict()
 
@@ -249,6 +253,11 @@ class Heap(BaseHeap):
             return HeapInvalidKeyError(key=key)
 
         return var_data
+
+
+class SymbolTable:
+    """To store types and functions"""
+    pass
 
 
 ########################
@@ -286,6 +295,7 @@ class MemoryManager(BaseMemoryManager):
     def __init__(self, max_num_index: int):
         self._stack = Stack()
         self._heap = Heap()
+        self._symbol = SymbolTable()
         self._pid = PIDManager()
         self._idx = IndexManager(max_num_index)
 
@@ -296,6 +306,10 @@ class MemoryManager(BaseMemoryManager):
     @property
     def heap(self) -> BaseHeap:
         return self._heap
+
+    @property
+    def symboltable(self) -> SymbolTable:
+        return self._symbol
 
     @property
     def idx(self) -> IndexManager:

@@ -13,6 +13,8 @@ typeenum                    = simple_id '{' enummember* '}'
 typeunion                   = simple_id 'union' '{' unionmember* '}'
 enummember                  = simple_id / typestruct
 unionmember                 = typesingle / typestruct / typeenum
+type_trait                  = 'trait' id '{' fns* '}'
+typespace                   = 'typespace' ( trait_id / id ) '{' fns* '}'
 
 fns                         = 'fn' simple_id fnargs id? body
 fnargs                      = '(' argtype* ')'
@@ -27,8 +29,8 @@ expr                        = cast / call / callwithbody / callwithbodyoptions /
 declare                     = simple_id modifier? ':' id
 assign                      = id '=' expr
 declareassign               = simple_id modifier? ':' id '=' expr
-cast                        = id '*' ( call / literal / id )
-call                        = id '(' args* ')'
+cast                        = ( call / literal / id ) '*' id
+call                        = (trait_id '.')? id '(' args* ')'
 args                        = callargs / call / valonly
 callargs                    = simple_id ':' valonly
 valonly                     = array / literal / id
@@ -42,14 +44,17 @@ simple_id                   = r'@?[a-zA-Z][a-zA-Z0-9\-_]*'
 composite_id                = simple_id ('.' simple_id)+
 composite_id_with_closure   = ( simple_id / composite_id ) '.' '{' ( simple_id / composite_id / composite_id_with_closure ) '}'
 modifier                    = '<' ( valonly+ / callargs+ ) '>'
+trait_id                    = simple_id '#' id
 id                          = ( composite_id / simple_id ) modifier?
 
-literal                     = null / bool / str / int / float / q__bool / q__int
+literal                     = null / bool / str / int / float / imag / complex / q__bool / q__int
 null                        = 'null'
 bool                        = 'true' / 'false'
 str                         = r'"([^"]*)"'
 int                         = r'-?([1-9]\d*|0)'
 float                       = r'0(\.\d+)?|[1-9]\d*(\.\d+)?'
+imag                        = (r'0(\.\d+)?|[1-9]\d*(\.\d+)?j') / (r'-?([1-9]\d*|0)j')
+complex                     = '[' ( int / float ) imag ']'
 q__bool                     = '@true' / '@false'
 q__int                      = r'-?\@([1-9]\d*|0)'
 

@@ -6,7 +6,9 @@ repo_url: "https://github.com/hhat-lang/hhat_lang/"
 repo_name: hhat-lang/hhat_lang
 
 nav:
-  - Home: index.md
+  - Home:
+      - H-hat language: index.md
+      - How to Contribute: how_contribute.md
   - Getting Started:
       - Getting Started: getting_started.md
       - Guides:
