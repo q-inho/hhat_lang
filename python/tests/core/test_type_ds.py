@@ -8,7 +8,7 @@ from hhat_lang.core.error_handlers.errors import (
     TypeQuantumOnClassicalError,
     VariableWrongMemberError,
 )
-from hhat_lang.core.types.builtin import QU3, U32
+from hhat_lang.core.types.builtin_types import U32, QU3
 from hhat_lang.core.types.core import SingleDS, StructDS
 
 

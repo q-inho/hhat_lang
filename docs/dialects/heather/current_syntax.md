@@ -143,13 +143,13 @@ fn sum (a:u32 b:u32) u32 { add(a b) }
 
 ```
 if(
-   cond1: some-result
-   cond2: { some-bracket-body-result }
+   eq(a b): some-result
+   lt(a b): { some-bracket-body-result }
    true: else-result 
 )
 ```
 
-An `if` statement is like a call with options: each option is one condition with its result. If the result contains multiple expressions, it must be inside a bracket body. The last condition can be a `true` option, representing the `else` clause in other programming languages, or a fallback `default`.
+An `if` statement is a call with options: each option is one condition with its result. If the result contains multiple expressions, it must be inside a bracket body. The last condition can be a `true` option, representing the `else` clause in other programming languages, or a fallback `default`.
 
 ## 9. Pattern matching (`match`)
 
@@ -163,3 +163,37 @@ match (something) {
 ```
 
 In a similar fashion to `if`, pattern matching `match` will have options containing their respective instructions. However, `match` requires a variable, function call, literal, etc. to be matched against. This something is placed inside parenthesis after `match` and a bracket body is defined with the options.
+
+
+### 10. Modifiers
+
+```
+id<keyword>
+
+id<property=value>
+
+id<keyword property=value ...>
+```
+
+Modifiers provide an extensive way to complement, define or modify the data it is attached to, a literal, variable, type, function call, etc.
+
+
+### 11. Generics
+
+
+### 12. Type trait
+
+
+### 13. `typespace`
+
+
+### 14. Function traits and `fnspace`
+
+#### 14.1 call with options
+
+
+#### 14.2 call with body
+
+
+#### 14.3 call with body options
+
