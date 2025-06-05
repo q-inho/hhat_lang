@@ -11,9 +11,9 @@ from hhat_lang.core.data.core import (
     Symbol,
 )
 from hhat_lang.core.data.variable import BaseDataContainer
+from hhat_lang.core.error_handlers.errors import HeapInvalidKeyError
 from hhat_lang.core.execution.abstract_base import BaseEvaluator
 from hhat_lang.core.memory.core import MemoryDataTypes
-from hhat_lang.core.error_handlers.errors import HeapInvalidKeyError
 
 ##########################
 # CLASSICAL INSTRUCTIONS #

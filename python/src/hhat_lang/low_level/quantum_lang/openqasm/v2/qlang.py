@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
-from typing import Any, Callable
+from typing import Any, Callable, Iterable, cast
 
 from hhat_lang.core.code.ir import BlockIR, InstrIR, InstrIRFlag, TypeIR
 from hhat_lang.core.code.utils import InstrStatus
@@ -65,7 +65,7 @@ class LowLeveQLang(BaseLowLevelQLang):
         var_data = executor.mem.heap[var if isinstance(var, Symbol) else var.name]
         code_tuple: tuple[str, ...] = ()
 
-        for member, data in var_data:
+        for member, data in cast(Iterable[tuple[Any, Any]], var_data):
 
             match data:
                 case Symbol():
@@ -182,6 +182,9 @@ class LowLeveQLang(BaseLowLevelQLang):
             A tuple with OpenQASM v2 code strings
         """
 
+        if not isinstance(instr, InstrIR):
+            return InstrNotFoundError(getattr(instr, "name", None))
+
         instr_module = importlib.import_module(
             name="hhat_lang.low_level.quantum_lang.openqasm.v2.instructions",
         )
@@ -191,7 +194,7 @@ class LowLeveQLang(BaseLowLevelQLang):
             if (x := getattr(obj, "name", False)) and x == instr.name:
 
                 if instr.name == Symbol("@nez"):
-                    args = tuple(instr.args)
+                    args: tuple[Any, ...] = tuple(cast(Iterable[Any], instr.args))
                     if len(args) != 2:
                         return InstrStatusError(instr.name)
 
