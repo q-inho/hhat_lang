@@ -11,7 +11,6 @@ from hhat_lang.dialects.heather.code.simple_ir_builder.ir import (
     IRInstr,
 )
 from hhat_lang.dialects.heather.interpreter.classical.executor import Evaluator
-from hhat_lang.low_level.quantum_lang.openqasm.v2.instructions import QNot
 from hhat_lang.low_level.quantum_lang.openqasm.v2.qlang import LowLeveQLang
 
 
@@ -186,6 +185,135 @@ measure q -> c;
     block.add_instr(IRInstr(Symbol("@not"), IRArgs(), InstrIRFlag.CALL))
 
     qlang = LowLeveQLang(Symbol("@v"), block, mem.idx, ex, Stack())
+    res = qlang.gen_program()
+
+    assert res == code_snippet
+
+
+def test_gen_program_nez_not_u3() -> None:
+    code_snippet = """OPENQASM 2.0;
+include \"qelib1.inc\";
+qreg q[3];
+creg c[3];
+
+x q[0];
+x q[2];
+measure q -> c;
+"""
+
+    qv = Symbol("@v")
+    mem = MemoryManager(5)
+    mem.idx.add(qv, 3)
+    mem.idx.request(qv)
+
+    ex = Evaluator(mem, TypeIR(), FnIR())
+
+    block = IRBlock()
+    block.add_instr(
+        IRInstr(
+            Symbol("@nez"),
+            IRArgs(CoreLiteral("@5", "@u3"), Symbol("@not")),
+            InstrIRFlag.CALL,
+        )
+    )
+
+    qlang = LowLeveQLang(qv, block, mem.idx, ex, Stack())
+    res = qlang.gen_program()
+
+    assert res == code_snippet
+
+
+def test_gen_program_nez_zero_mask() -> None:
+    code_snippet = """OPENQASM 2.0;
+include \"qelib1.inc\";
+qreg q[3];
+creg c[3];
+
+
+measure q -> c;
+"""
+
+    qv = Symbol("@v")
+    mem = MemoryManager(5)
+    mem.idx.add(qv, 3)
+    mem.idx.request(qv)
+
+    ex = Evaluator(mem, TypeIR(), FnIR())
+
+    block = IRBlock()
+    block.add_instr(
+        IRInstr(
+            Symbol("@nez"),
+            IRArgs(CoreLiteral("@0", "@u3"), Symbol("@not")),
+            InstrIRFlag.CALL,
+        )
+    )
+
+    qlang = LowLeveQLang(qv, block, mem.idx, ex, Stack())
+    res = qlang.gen_program()
+
+    assert res == code_snippet
+
+
+def test_gen_program_nez_redim_small_mask() -> None:
+    code_snippet = """OPENQASM 2.0;
+include \"qelib1.inc\";
+qreg q[3];
+creg c[3];
+
+h q[0];
+measure q -> c;
+"""
+
+    qv = Symbol("@v")
+    mem = MemoryManager(5)
+    mem.idx.add(qv, 3)
+    mem.idx.request(qv)
+
+    ex = Evaluator(mem, TypeIR(), FnIR())
+
+    block = IRBlock()
+    block.add_instr(
+        IRInstr(
+            Symbol("@nez"),
+            IRArgs(CoreLiteral("@1", "@bool"), Symbol("@redim")),
+            InstrIRFlag.CALL,
+        )
+    )
+
+    qlang = LowLeveQLang(qv, block, mem.idx, ex, Stack())
+    res = qlang.gen_program()
+
+    assert res == code_snippet
+
+
+def test_gen_program_nez_bool_not() -> None:
+    code_snippet = """OPENQASM 2.0;
+include \"qelib1.inc\";
+qreg q[1];
+creg c[1];
+
+x q[0];
+measure q -> c;
+"""
+
+    qv = Symbol("@v")
+    mem = MemoryManager(5)
+    mem.idx.add(qv, 1)
+    mem.idx.request(qv)
+
+    ex = Evaluator(mem, TypeIR(), FnIR())
+
+    block = IRBlock()
+    block.add_instr(
+        IRInstr(
+            Symbol("@nez"),
+            IRArgs(CoreLiteral("@1", "@bool"), Symbol("@not")),
+            InstrIRFlag.CALL,
+        )
+    )
+
+    qlang = LowLeveQLang(qv, block, mem.idx, ex, Stack())
     res = qlang.gen_program()
 
     assert res == code_snippet

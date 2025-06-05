@@ -13,6 +13,7 @@ from hhat_lang.core.data.core import (
 from hhat_lang.core.data.variable import BaseDataContainer
 from hhat_lang.core.execution.abstract_base import BaseEvaluator
 from hhat_lang.core.memory.core import MemoryDataTypes
+from hhat_lang.core.error_handlers.errors import HeapInvalidKeyError
 
 ##########################
 # CLASSICAL INSTRUCTIONS #
@@ -185,3 +186,96 @@ class QNot(QInstr):
         instrs, status = self._translate_instrs(idxs)
         self._instr_status = status
         return instrs, status
+
+
+class QNez(QInstr):
+    """Quantum not-equal-zero instruction."""
+
+    name = "@nez"
+
+    @staticmethod
+    def _get_mask_idxs(
+        mask: CoreLiteral | BaseDataContainer | Symbol,
+        num_idxs: int,
+        executor: BaseEvaluator | None = None,
+    ) -> tuple[int, ...]:
+        """Return indexes from ``mask`` that are non-zero.
+
+        If ``mask`` is a variable or a symbol reference to a variable, the
+        current value is fetched from ``executor``'s memory manager.
+        """
+
+        match mask:
+            case CoreLiteral():
+                lit = mask
+            case BaseDataContainer() | Symbol():
+                if executor is None:
+                    raise ValueError("executor required for variable mask")
+                var = executor.mem.heap[mask if isinstance(mask, Symbol) else mask.name]
+                if isinstance(var, HeapInvalidKeyError):
+                    raise ValueError("mask variable does not exist")
+                val = var.get(var.type if hasattr(var, "type") else None)
+                if isinstance(val, list):
+                    val = val[-1]
+                if not isinstance(val, CoreLiteral):
+                    raise ValueError("mask variable does not contain literal")
+                lit = val
+            case _:
+                raise ValueError("unsupported mask type")
+
+        mask_bits = lit.bin[::-1]
+        idxs: tuple[int, ...] = tuple(
+            i for i, bit in enumerate(mask_bits) if bit == "1" and i < num_idxs
+        )
+        return idxs
+
+    @staticmethod
+    def _instr(idx: int, body_instr: QInstr) -> str:
+        if hasattr(body_instr, "_instr"):
+            return body_instr._instr(idx)  # type: ignore[attr-defined]
+        raise NotImplementedError("body instruction missing '_instr' method")
+
+    def _translate_instrs(
+        self,
+        idxs: tuple[int, ...],
+        mask: CoreLiteral | BaseDataContainer | Symbol,
+        body_instr: QInstr,
+        executor: BaseEvaluator | None = None,
+        **kwargs: Any,
+    ) -> tuple[tuple[str, ...], InstrStatus]:
+        """Translate ``@nez`` instruction."""
+
+        mask_idxs = self._get_mask_idxs(mask, len(idxs), executor)
+
+        if not mask_idxs:
+            return tuple(), InstrStatus.DONE
+
+        selected = tuple(idxs[i] for i in mask_idxs)
+        return (
+            tuple(self._instr(i, body_instr) for i in selected),
+            InstrStatus.DONE,
+        )
+
+    def __call__(
+        self,
+        *,
+        idxs: tuple[int, ...],
+        mask: CoreLiteral | BaseDataContainer | Symbol,
+        body_instr: QInstr,
+        executor: BaseEvaluator | None = None,
+        **kwargs: Any,
+    ) -> tuple[tuple[str, ...], InstrStatus]:
+        """Transforms ``@nez`` instruction to OpenQASM v2.0 code."""
+
+        self._instr_status = InstrStatus.RUNNING
+        instrs, status = self._translate_instrs(
+            idxs=idxs,
+            mask=mask,
+            body_instr=body_instr,
+            executor=executor,
+            **kwargs,
+        )
+        self._instr_status = status
+        return instrs, status
+
+

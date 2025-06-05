@@ -182,6 +182,7 @@ class LowLeveQLang(BaseLowLevelQLang):
             A tuple with OpenQASM v2 code strings
         """
 
+
         instr_module = importlib.import_module(
             name="hhat_lang.low_level.quantum_lang.openqasm.v2.instructions",
         )
@@ -189,10 +190,34 @@ class LowLeveQLang(BaseLowLevelQLang):
         for name, obj in inspect.getmembers(instr_module, inspect.isclass):
 
             if (x := getattr(obj, "name", False)) and x == instr.name:
-                res_instr, res_status = obj()(
-                    idxs=self._idx.in_use_by[self._qdata],
-                    executor=self._executor,
-                )
+
+                if instr.name == Symbol("@nez"):
+                    args = tuple(instr.args)
+                    if len(args) != 2:
+                        return InstrStatusError(instr.name)
+
+                    mask, body = args
+
+                    body_cls = None
+                    for n, o in inspect.getmembers(instr_module, inspect.isclass):
+                        if getattr(o, "name", False) == body:
+                            body_cls = o
+                            break
+
+                    if body_cls is None:
+                        return InstrNotFoundError(body)
+
+                    res_instr, res_status = obj()(
+                        idxs=self._idx.in_use_by[self._qdata],
+                        mask=mask,
+                        body_instr=body_cls(),
+                        executor=self._executor,
+                    )
+                else:
+                    res_instr, res_status = obj()(
+                        idxs=self._idx.in_use_by[self._qdata],
+                        executor=self._executor,
+                    )
 
                 if res_status == InstrStatus.DONE:
                     return Ok(res_instr)
@@ -223,7 +248,7 @@ class LowLeveQLang(BaseLowLevelQLang):
 
         for instr in self._code:  # type: ignore [attr-defined]
 
-            if instr.args:
+            if instr.args and instr.name != Symbol("@nez"):
 
                 match gen_args := self.gen_args(instr.args):
 
