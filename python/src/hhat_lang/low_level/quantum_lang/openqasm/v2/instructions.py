@@ -277,5 +277,3 @@ class QNez(QInstr):
         )
         self._instr_status = status
         return instrs, status
-
-

@@ -182,7 +182,6 @@ class LowLeveQLang(BaseLowLevelQLang):
             A tuple with OpenQASM v2 code strings
         """
 
-
         instr_module = importlib.import_module(
             name="hhat_lang.low_level.quantum_lang.openqasm.v2.instructions",
         )
