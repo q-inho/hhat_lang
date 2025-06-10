@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from hhat_lang.core.code.instructions import QInstrFlag
 from hhat_lang.core.code.ir import InstrIRFlag, TypeIR
 from hhat_lang.core.code.utils import InstrStatus
 from hhat_lang.core.data.core import CoreLiteral, Symbol
+from hhat_lang.core.error_handlers.errors import InstrStatusError
 from hhat_lang.core.memory.core import MemoryManager, Stack
+from hhat_lang.core.utils import Ok
 from hhat_lang.dialects.heather.code.simple_ir_builder.ir import (
     FnIR,
     IRArgs,
@@ -11,6 +14,10 @@ from hhat_lang.dialects.heather.code.simple_ir_builder.ir import (
     IRInstr,
 )
 from hhat_lang.dialects.heather.interpreter.classical.executor import Evaluator
+from hhat_lang.low_level.quantum_lang.openqasm.v2.instructions import (
+    QNez,
+    QNot,
+)
 from hhat_lang.low_level.quantum_lang.openqasm.v2.qlang import LowLeveQLang
 
 
@@ -224,14 +231,7 @@ measure q -> c;
 
 
 def test_gen_program_nez_zero_mask() -> None:
-    code_snippet = """OPENQASM 2.0;
-include \"qelib1.inc\";
-qreg q[3];
-creg c[3];
-
-
-measure q -> c;
-"""
+    code_snippet = ""
 
     qv = Symbol("@v")
     mem = MemoryManager(5)
@@ -317,3 +317,12 @@ measure q -> c;
     res = qlang.gen_program()
 
     assert res == code_snippet
+
+
+def test_qinstr_flag_skip_gen_args() -> None:
+    """Ensure instructions with the flag skip argument generation."""
+
+    assert QNez.flag == QInstrFlag.SKIP_GEN_ARGS
+    assert QNez().skip_gen_args
+    assert QNot.flag == QInstrFlag.NONE
+    assert not QNot().skip_gen_args

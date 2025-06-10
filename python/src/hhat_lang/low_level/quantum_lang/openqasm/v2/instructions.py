@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from hhat_lang.core.code.instructions import CInstr, QInstr
+from hhat_lang.core.code.instructions import CInstr, QInstr, QInstrFlag
 from hhat_lang.core.code.utils import InstrStatus
 from hhat_lang.core.data.core import (
     CompositeLiteral,
@@ -11,9 +11,13 @@ from hhat_lang.core.data.core import (
     Symbol,
 )
 from hhat_lang.core.data.variable import BaseDataContainer
-from hhat_lang.core.error_handlers.errors import HeapInvalidKeyError
+from hhat_lang.core.error_handlers.errors import (
+    HeapInvalidKeyError,
+    IndexUnknownError,
+)
 from hhat_lang.core.execution.abstract_base import BaseEvaluator
 from hhat_lang.core.memory.core import MemoryDataTypes
+from hhat_lang.core.utils import Error, Ok, Result
 
 ##########################
 # CLASSICAL INSTRUCTIONS #
@@ -192,13 +196,14 @@ class QNez(QInstr):
     """Quantum not-equal-zero instruction."""
 
     name = "@nez"
+    flag = QInstrFlag.SKIP_GEN_ARGS
 
     @staticmethod
     def _get_mask_idxs(
         mask: CoreLiteral | BaseDataContainer | Symbol,
         num_idxs: int,
         executor: BaseEvaluator | None = None,
-    ) -> tuple[int, ...]:
+    ) -> Result:
         """Return indexes from ``mask`` that are non-zero.
 
         If ``mask`` is a variable or a symbol reference to a variable, the
@@ -210,24 +215,31 @@ class QNez(QInstr):
                 lit = mask
             case BaseDataContainer() | Symbol():
                 if executor is None:
-                    raise ValueError("executor required for variable mask")
+                    return Error(IndexUnknownError())
+
                 var = executor.mem.heap[mask if isinstance(mask, Symbol) else mask.name]
+
                 if isinstance(var, HeapInvalidKeyError):
-                    raise ValueError("mask variable does not exist")
+                    return Error(var)
+
                 val = var.get(var.type if hasattr(var, "type") else None)
+
                 if isinstance(val, list):
                     val = val[-1]
+
                 if not isinstance(val, CoreLiteral):
-                    raise ValueError("mask variable does not contain literal")
+                    return Error(IndexUnknownError())
+
                 lit = val
             case _:
-                raise ValueError("unsupported mask type")
+                return Error(IndexUnknownError())
 
         mask_bits = lit.bin[::-1]
         idxs: tuple[int, ...] = tuple(
             i for i, bit in enumerate(mask_bits) if bit == "1" and i < num_idxs
         )
-        return idxs
+
+        return Ok(idxs)
 
     @staticmethod
     def _instr(idx: int, body_instr: QInstr) -> str:
@@ -245,7 +257,18 @@ class QNez(QInstr):
     ) -> tuple[tuple[str, ...], InstrStatus]:
         """Translate ``@nez`` instruction."""
 
-        mask_idxs = self._get_mask_idxs(mask, len(idxs), executor)
+        mask_res = self._get_mask_idxs(mask, len(idxs), executor)
+
+        match mask_res:
+            case Ok():
+                mask_idxs = mask_res.result()
+            case Error():
+                # error while obtaining mask indexes
+                return (
+                    mask_res.result(),
+                ), InstrStatus.ERROR  # type: ignore[return-value]
+            case _:
+                return tuple(), InstrStatus.ERROR
 
         if not mask_idxs:
             return tuple(), InstrStatus.DONE
