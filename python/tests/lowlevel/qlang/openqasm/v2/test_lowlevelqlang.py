@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from hhat_lang.core.code.instructions import QInstrFlag
 from hhat_lang.core.code.ir import InstrIRFlag, TypeIR
-from hhat_lang.core.code.utils import InstrStatus
 from hhat_lang.core.data.core import CoreLiteral, Symbol
 from hhat_lang.core.error_handlers.errors import InstrStatusError
 from hhat_lang.core.memory.core import MemoryManager, Stack
@@ -80,7 +79,7 @@ measure q -> c;
     qlang = LowLeveQLang(Symbol("@v"), block, mem.idx, ex, Stack())
     res = qlang.gen_program()
     print(res)
-    # assert res == code_snippet
+    assert res == code_snippet
 
 
 def test_gen_program_single_bool_not() -> None:
