@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from hhat_lang.core.code.ir import InstrIRFlag, TypeIR
-from hhat_lang.core.code.utils import InstrStatus
 from hhat_lang.core.data.core import CoreLiteral, Symbol
 from hhat_lang.core.memory.core import MemoryManager, Stack
 from hhat_lang.dialects.heather.code.simple_ir_builder.ir import (
@@ -11,7 +10,6 @@ from hhat_lang.dialects.heather.code.simple_ir_builder.ir import (
     IRInstr,
 )
 from hhat_lang.dialects.heather.interpreter.classical.executor import Evaluator
-from hhat_lang.low_level.quantum_lang.openqasm.v2.instructions import QNot
 from hhat_lang.low_level.quantum_lang.openqasm.v2.qlang import LowLeveQLang
 
 
@@ -74,7 +72,7 @@ measure q -> c;
     qlang = LowLeveQLang(Symbol("@v"), block, mem.idx, ex, Stack())
     res = qlang.gen_program()
     print(res)
-    # assert res == code_snippet
+    assert res == code_snippet
 
 
 def test_gen_program_single_bool_not() -> None:
