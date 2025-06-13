@@ -41,7 +41,6 @@ class IRModifier:
 
         # check whether amods (mod arguments) is not empty:
         if amods:
-
             for n, p in enumerate(amods):
                 if isinstance(p, (Symbol, CompositeSymbol, SSA)):
                     self._mods[n] = p
@@ -51,7 +50,6 @@ class IRModifier:
 
         # check whether kmods (mod key-value pairs) is not empty instead:
         elif kmods:
-
             for k, v in kmods.items():
                 if isinstance(k, Symbol) and isinstance(
                     v, (Symbol, CompositeSymbol, SSA, CoreLiteral)
@@ -267,8 +265,7 @@ class IRVar:
 
             case _:
                 raise ValueError(
-                    f"IRVar only accepts Symbol, SSA, SSAPhi or IRModifier."
-                    f" ({name} ({type(name)}))"
+                    f"IRVar only accepts Symbol, SSA, SSAPhi or IRModifier. ({name} ({type(name)}))"
                 )
 
         raise ValueError("IRVar cannot accept a different symbol (variable).")

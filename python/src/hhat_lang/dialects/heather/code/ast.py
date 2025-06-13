@@ -50,7 +50,7 @@ class OnlyValue(Node):
 
 class Modifier(Node):
     def __init__(self, *modifiers: ArgValuePair):
-        self._values = modifiers
+        self._value = modifiers
         self._name = self.__class__.__name__
 
 
@@ -106,6 +106,11 @@ class Expr(Node):
         self._name = self.__class__.__name__
 
 
+class Return(Expr):
+    def __init__(self, *expr: Expr):
+        super().__init__(*expr)
+
+
 class Declare(Node):
     def __init__(self, var_name: Id, var_type: TypeType):
         self._value = (var_name, var_type)
@@ -130,8 +135,8 @@ class DeclareAssign(Node):
 
 
 class CallArgs(Node):
-    def __init__(self, *args: ArgValuePair | OnlyValue):
-        self._values = args
+    def __init__(self, *args: ArgValuePair | OnlyValue | Call):
+        self._value = args
         self._name = self.__class__.__name__
 
 
@@ -143,7 +148,7 @@ class Call(Node):
 
 class MethodCallArgs(Node):
     def __init__(self, *args: ArgValuePair | OnlyValue):
-        self._values = args
+        self._value = args
         self._name = self.__class__.__name__
 
 
@@ -154,7 +159,7 @@ class MethodCall(Node):
 
 
 class InsideOption(Node):
-    def __init__(self, option: Expr, body: Body):
+    def __init__(self, option: Call | Array | TypeType, body: Body):
         self._value = (option, body)
         self._name = self.__class__.__name__
 
@@ -190,7 +195,7 @@ class ArgTypePair(Node):
 
 class FnArgs(Node):
     def __init__(self, *args: ArgTypePair):
-        self._values = args
+        self._value = args
         self._name = self.__class__.__name__
 
 
@@ -279,7 +284,7 @@ class Body(Node):
     """
 
     def __init__(self, *body: BodyType):
-        self._values = body
+        self._value = body
         self._name = self.__class__.__name__
 
 
@@ -306,7 +311,7 @@ class Program(Node):
 
         self._value = ()
 
-        if imports and body:
+        if imports:
             self._value += (imports,)
 
         if body:

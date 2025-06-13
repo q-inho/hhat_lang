@@ -68,7 +68,6 @@ def execute_program(
     res = sample_circuit(circ, qdata)
 
     match res:
-
         # in case it had an error
         case InvalidQuantumComputedResult():
             # TODO: define properly what to do next
@@ -76,7 +75,6 @@ def execute_program(
 
         # should contain the counts with bitstrings as keys (`Counter`?)
         case _:
-
             if debug:
                 print(res)
 

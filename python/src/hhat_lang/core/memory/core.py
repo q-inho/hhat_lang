@@ -143,7 +143,6 @@ class IndexManager:
         """
 
         if (self._num_allocated + num_idxs) <= self._max_num_index:
-
             if var_name not in self._resources:
                 self._resources[var_name] = num_idxs
                 return None
@@ -164,7 +163,6 @@ class IndexManager:
             return IndexInvalidVarError(var_name)
 
         match x := self._alloc_idxs(num_idxs):
-
             case deque():
                 if not self._has_var(var_name):
                     return IndexInvalidVarError(var_name=var_name)
@@ -275,7 +273,6 @@ class SymbolTable:
 
 
 class BaseMemoryManager(ABC):
-
     _idx: IndexManager
     _stack: BaseStack
     _heap: BaseHeap

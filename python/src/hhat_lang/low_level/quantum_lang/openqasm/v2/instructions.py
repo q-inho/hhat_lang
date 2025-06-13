@@ -40,7 +40,6 @@ class If(CInstr):
         transformed_instrs: tuple[str, ...] = ()
 
         for c, i in zip(cond_test, instrs):
-
             c_value: str
 
             match c:

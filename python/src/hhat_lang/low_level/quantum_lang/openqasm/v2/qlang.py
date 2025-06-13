@@ -66,7 +66,6 @@ class LowLeveQLang(BaseLowLevelQLang):
         code_tuple: tuple[str, ...] = ()
 
         for member, data in var_data:
-
             match data:
                 case Symbol():
                     d_res = self.gen_var(data, executor=self._executor)
@@ -99,7 +98,6 @@ class LowLeveQLang(BaseLowLevelQLang):
                     raise NotImplementedError()
 
                 case InstrIR():
-
                     match res := self.gen_instrs(instr=data, executor=self._executor):
                         case Ok():
                             code_tuple += res.result()
@@ -116,7 +114,6 @@ class LowLeveQLang(BaseLowLevelQLang):
         code_tuple: tuple[str, ...] = ()
 
         for k in args:
-
             match k:
                 case Symbol():
                     res = self.gen_var(k, executor=self._executor)
@@ -149,7 +146,6 @@ class LowLeveQLang(BaseLowLevelQLang):
                     raise NotImplementedError()
 
                 case InstrIR():
-
                     match instr_res := self.gen_instrs(instr=k, **kwargs):
                         case Ok():
                             code_tuple += instr_res.result()
@@ -187,7 +183,6 @@ class LowLeveQLang(BaseLowLevelQLang):
         )
 
         for name, obj in inspect.getmembers(instr_module, inspect.isclass):
-
             if (x := getattr(obj, "name", False)) and x == instr.name:
                 res_instr, res_status = obj()(
                     idxs=self._idx.in_use_by[self._qdata],
@@ -222,11 +217,8 @@ class LowLeveQLang(BaseLowLevelQLang):
         code += "\n".join(self.init_qlang()) + "\n\n"
 
         for instr in self._code:  # type: ignore [attr-defined]
-
             if instr.args:
-
                 match gen_args := self.gen_args(instr.args):
-
                     case Ok():
                         if gen_args.result():
                             code += "\n".join(gen_args.result()) + "\n"
@@ -241,7 +233,6 @@ class LowLeveQLang(BaseLowLevelQLang):
             match gen_instr := self.gen_instrs(
                 instr=instr, idx=self._idx, executor=self._executor
             ):
-
                 case Ok():
                     code += "\n".join(gen_instr.result())
 

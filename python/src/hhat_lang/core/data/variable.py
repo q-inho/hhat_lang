@@ -128,12 +128,9 @@ class BaseDataContainer(ABC):
         """
 
         if data.type == attr_type:
-
             # is quantum or array data structure
             if data.is_quantum or self._check_array_prop(data):
-
                 if attr_type in self._ds:
-
                     if attr_type in self._data:
                         self._data[attr_type].append(data)
 
@@ -168,10 +165,8 @@ class BaseDataContainer(ABC):
         """
 
         if key in self._ds:
-
             # is quantum or array data structure
             if key.is_quantum or self._check_array_prop(value):
-
                 if key in self._data:
                     self._data[key].append(value)
 
@@ -235,15 +230,12 @@ class VariableTemplate:
         type_ds: SymbolOrdered,
         flag: VariableKind = VariableKind.IMMUTABLE,
     ) -> BaseDataContainer | ErrorHandler:
-
         # quantum variables are, at least for now, always appendable and thus mutable
         if isquantum(var_name) and isquantum(type_name):
             return AppendableVariable(var_name, type_name, type_ds, True)
 
         if not isquantum(var_name) and not isquantum(type_name):
-
             match flag:
-
                 # constant, at least for now, cannot be quantum
                 case VariableKind.CONSTANT:
                     return ConstantData(var_name, type_name, type_ds)
@@ -330,20 +322,14 @@ class ImmutableVariable(BaseDataContainer):
         *args: Any,
         **kwargs: SymbolOrdered,
     ) -> None | ErrorHandler:
-
         if not self._assigned:
-
             if len(args) == len(self._ds):
-
                 for k, d in zip(args, self._ds):
-
                     if not self._check_assign_ds_vals(k, d):
                         return ContainerVarError(self.name)
 
             elif len(kwargs) == len(self._ds):
-
                 for k, v in kwargs.items():
-
                     if not self._check_assign_ds_args_vals(Symbol(k), v):
                         return ContainerVarError(self.name)
 
@@ -391,18 +377,13 @@ class MutableVariable(BaseDataContainer):
     def assign(
         self, *args: Any, **kwargs: dict[WorkingData, WorkingData | BaseDataContainer]
     ) -> None | ErrorHandler:
-
         if len(args) == len(self._ds):
-
             for k, d in zip(args, self._ds):
-
                 if not self._check_assign_ds_vals(k, d):
                     return ContainerVarError(self.name)
 
         elif len(kwargs) == len(self._ds):
-
             for k, v in kwargs.items():
-
                 if not self._check_assign_ds_args_vals(Symbol(k), v):
                     return ContainerVarError(self.name)
 
@@ -451,18 +432,13 @@ class AppendableVariable(BaseDataContainer):
         *args: Any,
         **kwargs: SymbolOrdered,
     ) -> None | ErrorHandler:
-
         if len(args) == len(self._ds):
-
             for k, d in zip(args, self._ds):
-
                 if not self._check_assign_ds_vals(k, d):
                     return ContainerVarError(self.name)
 
         elif len(kwargs) == len(self._ds):
-
             for k, v in kwargs.items():
-
                 if not self._check_assign_ds_args_vals(Symbol(k), v):
                     return ContainerVarError(self.name)
 

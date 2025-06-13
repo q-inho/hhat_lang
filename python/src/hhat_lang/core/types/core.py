@@ -47,7 +47,6 @@ class SingleDS(BaseTypeDataStructure):
     def add_member(
         self, member_type: BaseTypeDataStructure, _member_name: None = None
     ) -> SingleDS | ErrorHandler:
-
         if not is_valid_member(self, member_type.name):
             return TypeQuantumOnClassicalError(member_type.name, self.name)
 
@@ -123,10 +122,8 @@ class StructDS(BaseTypeDataStructure):
     def add_member(
         self, member_type: BaseTypeDataStructure, member_name: Symbol | CompositeSymbol
     ) -> StructDS | ErrorHandler:
-
         # check if type and name are consistent, i.e. both quantum or classical
         if has_same_paradigm(member_type, member_name):
-
             if is_valid_member(self, member_type.name):
                 self._type_container[member_name] = member_type.name
                 return self
@@ -146,7 +143,6 @@ class StructDS(BaseTypeDataStructure):
 
         if len(args) == len(self._type_container):
             for k, (g, c) in zip(args, self._type_container.items()):
-
                 if k.type == c:
                     container[g] = k
 
@@ -155,7 +151,6 @@ class StructDS(BaseTypeDataStructure):
 
         if len(kwargs) == len(self._type_container):
             for n, (k, v) in enumerate(kwargs.items()):
-
                 if k in self._type_container:
                     container[k] = v
 

@@ -6,20 +6,35 @@ from hhat_lang.core.code.ast import AST
 from hhat_lang.dialects.heather.code.ast import (
     ArgTypePair,
     ArgValuePair,
+    Assign,
+    Body,
+    Call,
+    CallArgs,
+    CallWithArgsBodyOptions,
+    CallWithBody,
+    CallWithBodyOptions,
+    Cast,
     CompositeId,
     CompositeIdWithClosure,
     CompositeLiteral,
+    Declare,
+    DeclareAssign,
     EnumTypeMember,
+    Expr,
+    FnArgs,
     FnDef,
     FnImport,
     Id,
     Imports,
+    InsideOption,
     Literal,
     Main,
     ManyTypeImport,
     ModifiedId,
     Modifier,
+    OnlyValue,
     Program,
+    Return,
     SingleTypeMember,
     TypeDef,
     TypeImport,
@@ -32,7 +47,7 @@ class ParserVisitor(PTNodeVisitor):
         imports: Imports | None = None
         types: tuple | tuple[TypeDef] = ()
         fns: tuple | tuple[FnDef] = ()
-        main: Main | None = None
+        main: Main | None = Main()
 
         for k in child:
             match k:
@@ -94,13 +109,85 @@ class ParserVisitor(PTNodeVisitor):
     def visit_enummember(self, _: NonTerminal, child: SemanticActionResults) -> AST:
         return EnumTypeMember(member_name=child[0])
 
+    def visit_fns(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        if len(child) == 4:
+            return FnDef(
+                fn_name=child[0], fn_type=child[2], args=child[1], body=child[-1]
+            )
+
+        return FnDef(
+            fn_name=child[0], fn_type=Id("null"), args=child[1], body=child[-1]
+        )
+
+    def visit_fnargs(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        return FnArgs(*child)
+
+    def visit_argtype(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        return ArgTypePair(arg_name=child[0], arg_type=child[1])
+
+    def visit_fn_body(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        return Body(*child)
+
+    def visit_body(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        return Body(*child)
+
+    def visit_declare(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        return Declare(var_name=child[0], var_type=child[1])
+
+    def visit_assign(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        return Assign(var_name=child[0], expr=child[1])
+
+    def visit_declareassign(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        return DeclareAssign(var_name=child[0], var_type=child[1], expr=child[2])
+
+    def visit_return(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        return Return(*child)
+
+    def visit_expr(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        return Expr(*child)
+
+    def visit_cast(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        return Cast(name=child[0], cast_to=child[1])
+
+    def visit_call(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        args = CallArgs(*[k for k in child[1:]])
+        return Call(caller=child[0], args=args)
+
+    def visit_trait_id(self, node: NonTerminal, child: SemanticActionResults) -> AST:
+        raise NotImplementedError()
+
+    def visit_args(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        return child[0]
+
+    def visit_callargs(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        return ArgValuePair(arg=child[0], value=child[1])
+
+    def visit_valonly(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        return OnlyValue(value=child[0])
+
+    def visit_option(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        return InsideOption(option=child[0], body=child[1])
+
+    def visit_callwithbody(self, _: NonTerminal, child: SemanticActionResults) -> AST:
+        return CallWithBody(caller=child[0], args=child[1], body=child[-1])
+
+    def visit_callwithbodyoptions(
+        self, _: NonTerminal, child: SemanticActionResults
+    ) -> AST:
+        return CallWithBodyOptions(*child[2:], caller=child[0], args=child[1])
+
+    def visit_callwithargsbodyoptions(
+        self, _: NonTerminal, child: SemanticActionResults
+    ) -> AST:
+        return CallWithArgsBodyOptions(*child[1:], caller=child[0])
+
     def visit_id_composite_value(
         self, _: NonTerminal, child: SemanticActionResults
     ) -> AST:
         """Get the value to form the type member for arguments and type definitions"""
         return child[0]
 
-    def visit_imports(self, node: NonTerminal, child: SemanticActionResults) -> AST:
+    def visit_imports(self, _: NonTerminal, child: SemanticActionResults) -> AST:
         """
         Take the tuple of optional type imports and function imports and place
         inside the `Imports` object, to be properly handled later by the type and
@@ -120,21 +207,26 @@ class ParserVisitor(PTNodeVisitor):
 
         return Imports(type_import=type_import, fn_import=fn_import)
 
-    def visit_typeimport(self, node: NonTerminal, child: SemanticActionResults) -> AST:
+    def visit_typeimport(self, _: NonTerminal, child: SemanticActionResults) -> AST:
         types: tuple | tuple[Id | CompositeId | CompositeIdWithClosure] = ()
 
         for k in child:
             match k:
+                case ManyTypeImport():
+                    types += tuple(p for p in k)
+
                 case Id() | CompositeId() | CompositeIdWithClosure():
                     types += (k,)
 
                 case _:
-                    raise ValueError("something went wrong when defining type import.")
+                    raise ValueError(
+                        f"something went wrong when defining type import: {k} ({type(k)})"
+                    )
 
         return TypeImport(type_list=types)
 
     def visit_fnimport(
-        self, node: NonTerminal | None, child: SemanticActionResults
+        self, _: NonTerminal | None, child: SemanticActionResults
     ) -> AST:
         fns: tuple | tuple[Id | CompositeId | CompositeIdWithClosure] = ()
 
@@ -149,13 +241,13 @@ class ParserVisitor(PTNodeVisitor):
         return FnImport(fn_list=fns)
 
     def visit_single_import(
-        self, node: NonTerminal | Terminal, child: SemanticActionResults
+        self, _: NonTerminal | Terminal, child: SemanticActionResults
     ) -> AST:
         """simply return the import AST"""
 
         return tuple(k for k in child)[0]
 
-    def visit_many_import(self, node: NonTerminal, child: SemanticActionResults) -> AST:
+    def visit_many_import(self, _: NonTerminal, child: SemanticActionResults) -> AST:
         return ManyTypeImport(*child)
 
     def visit_main(self, _: NonTerminal, child: SemanticActionResults) -> AST:
@@ -176,15 +268,13 @@ class ParserVisitor(PTNodeVisitor):
         name, *deps = tuple(k for k in child)
         return CompositeIdWithClosure(*deps, name=name)
 
-    def visit_id(
-        self, node: NonTerminal | Terminal, child: SemanticActionResults
-    ) -> AST:
+    def visit_id(self, _: NonTerminal | Terminal, child: SemanticActionResults) -> AST:
         if len(child) == 2 and isinstance(child[1], Modifier):
             return ModifiedId(name=child[0], modifier=child[1])
 
         return child[0]
 
-    def visit_modifier(self, node: NonTerminal, child: SemanticActionResults) -> AST:
+    def visit_modifier(self, _: NonTerminal, child: SemanticActionResults) -> AST:
         if all(isinstance(k, ArgValuePair) for k in child):
             return Modifier(*child)
 
@@ -192,27 +282,10 @@ class ParserVisitor(PTNodeVisitor):
             f"Modifier should have had ArgValuePair, got {set(type(k) for k in child)} instead."
         )
 
-    def visit_trait_id(self, node: NonTerminal, child: SemanticActionResults) -> AST:
-        raise NotImplementedError()
-
-    def visit_call(self, node: NonTerminal, child: SemanticActionResults) -> AST:
-        raise NotImplementedError()
-
-    def visit_args(self, node: NonTerminal, child: SemanticActionResults) -> AST:
-        raise NotImplementedError()
-
-    def visit_callargs(self, node: NonTerminal, child: SemanticActionResults) -> AST:
-        raise NotImplementedError()
-
-    def visit_valonly(self, node: NonTerminal, child: SemanticActionResults) -> AST:
-        raise NotImplementedError()
-
     def visit_array(self, node: NonTerminal, child: SemanticActionResults) -> AST:
         raise NotImplementedError()
 
-    def visit_composite_id(
-        self, node: NonTerminal, child: SemanticActionResults
-    ) -> AST:
+    def visit_composite_id(self, _: NonTerminal, child: SemanticActionResults) -> AST:
         if all(isinstance(k, Id) for k in child):
             return CompositeId(*child)
 

@@ -17,17 +17,17 @@ unionmember                 = typemember / typestruct / typeenum
 type_trait                  = 'trait' id '{' fns* '}'
 typespace                   = 'typespace' ( trait_id / id ) '{' fns* '}'
 
-fns                         = 'fn' simple_id fnargs id? body
+fns                         = 'fn' simple_id fnargs id? fn_body
 fnargs                      = '(' argtype* ')'
 argtype                     = simple_id ':' id_composite_value
 fn_body                     = '{' (declare / assign / declareassign / return / expr)* '}'
-return                      = "=" expr
+return                      = "::" expr
 id_composite_value          = ( '[' id ']' ) / id
 
 main                        = 'main' body
 
 body                        = '{' (declare / assign / declareassign / expr)* '}'
-expr                        = cast / call / callwithbody / callwithbodyoptions / callwithargsbodyoptions / array / id / literal
+expr                        = cast / callwithargsbodyoptions / callwithbodyoptions / callwithbody / call / array / id / literal
 declare                     = simple_id modifier? ':' id
 assign                      = id '=' expr
 declareassign               = simple_id modifier? ':' id '=' expr
@@ -36,15 +36,16 @@ call                        = (trait_id '.')? id '(' args* ')'
 args                        = callargs / call / valonly
 callargs                    = simple_id ':' valonly
 valonly                     = array / literal / id
-callwithbodyoptions         = id '(' args* ')' body
-callwithargsbodyoptions     = id '(' (expr body)+ ')'
-callwithbody                = id body
+option                      = (( call / array / id ) ':' body)
+callwithbodyoptions         = id '(' args* ')' '{' option+ '}'
+callwithargsbodyoptions     = id '(' option+ ')'
+callwithbody                = id '(' args* ')' body
 
 array                       = '[' ( literal / composite_id_with_closure / id )* ']'
 
 simple_id                   = r'@?[a-zA-Z][a-zA-Z0-9\-_]*'
 composite_id                = simple_id ('.' simple_id)+
-composite_id_with_closure   = ( simple_id / composite_id ) '.' '{' ( simple_id / composite_id / composite_id_with_closure ) '}'
+composite_id_with_closure   = ( composite_id / simple_id ) '.' '{' ( composite_id_with_closure / composite_id / simple_id )+ '}'
 modifier                    = '<' ( valonly+ / callargs+ ) '>'
 trait_id                    = simple_id '#' id
 id                          = ( composite_id / simple_id ) modifier?

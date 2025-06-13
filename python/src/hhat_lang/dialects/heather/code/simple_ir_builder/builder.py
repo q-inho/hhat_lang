@@ -52,7 +52,6 @@ def define_argvaluepair(code: ArgValuePair) -> tuple[Symbol, Any]:
 
 def define_valuetype(code: ValueType) -> Any:
     match code:
-
         case Id():
             return define_id(code)
 

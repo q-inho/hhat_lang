@@ -107,7 +107,6 @@ def _build_modifier(code: Modifier) -> tuple[tuple[Symbol, Any], ...]:
     mods = ()
 
     for mod in code.value:
-
         arg, value = _build_argvaluepair(mod)
         mods += ((arg, value),)
 
@@ -205,7 +204,6 @@ def _build_typedef(code: TypeDef) -> Any:
 
 def _build_typeimport(code: TypeImport) -> Any:
     for k in code:
-
         match k:
             case Id():
                 pass
@@ -223,7 +221,6 @@ def _build_fnimport(code: FnImport) -> Any:
 
 def _build_imports(code: Imports) -> Any:
     for k in code:
-
         match k:
             case TypeImport():
                 return _build_typeimport(k)
@@ -237,7 +234,6 @@ def _build_imports(code: Imports) -> Any:
 
 def _build_body(code: Body) -> Any:
     for k in code:
-
         _build_bodytype(k)
 
 
@@ -250,7 +246,6 @@ def _build_valuetype(code: ValueType) -> Any:
     """Build based on the `ValueType` type descriptor."""
 
     match tmp := code:
-
         case Id():
             return _build_id(tmp)
 
@@ -326,9 +321,7 @@ def _build_bodytype(code: BodyType) -> Any:
 
 def build_typetable(code: AST) -> Any:
     for k in code:
-
         match k:
-
             case Id():
                 pass
 
@@ -433,9 +426,7 @@ def build_main(code: AST) -> Any:
     ir = IR()
 
     for k in code:
-
         match k:
-
             case Imports():
                 res = parse_imports(k)
 

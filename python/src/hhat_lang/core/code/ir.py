@@ -90,7 +90,6 @@ class BodyIR:
 
     def push(self, new_item: Any, to_instr_fn: Callable | None = None) -> None:
         if not isinstance(new_item, InstrIR | BlockIR):
-
             if to_instr_fn is not None:
                 new_item = to_instr_fn(new_item)
 

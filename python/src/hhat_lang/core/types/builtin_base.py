@@ -106,12 +106,10 @@ class BuiltinSingleDS(BaseTypeDataStructure):
 def int_to_uN(
     ds: BuiltinSingleDS, data: CoreLiteral | BaseDataContainer
 ) -> CoreLiteral | BaseDataContainer | ErrorHandler:
-
     if ds.bitsize is not None:
         max_value = 1 << ds.bitsize.size
 
         if isinstance(data, CoreLiteral):
-
             if data < 0:
                 return CastNegToUnsignedError(data, ds.members[0][1])
 
@@ -124,7 +122,6 @@ def int_to_uN(
         if isinstance(data, BaseDataContainer):
             val = data.get()
             if data.type in int_types:
-
                 match val:
                     case ErrorHandler():
                         return val

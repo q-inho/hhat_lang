@@ -12,7 +12,6 @@ def _size_resolver():
 
 def _qsize_resolver(ds: BaseTypeDataStructure, table: TypeTable) -> int | None:
     if ds.qsize is not None:
-
         if ds.qsize.max is None:
             qsize_max = 0
 

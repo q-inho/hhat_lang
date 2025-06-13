@@ -22,7 +22,6 @@ def check_quantum_type_correctness(names: tuple[str, ...]) -> None:
     prev_quantum = False
     cur_quantum = False
     for n, name in enumerate(names):
-
         if n != 0 and cur_quantum and not prev_quantum:
             raise ValueError(
                 f"{name} is an attribute from a non-quantum symbol. "

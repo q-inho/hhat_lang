@@ -1,0 +1,9 @@
+use (
+  type:[
+    geometry.{euclidian.space differential.form}
+    std.io.socket
+  ]
+  fn:math.{sin cos tan}
+)
+
+main {}
