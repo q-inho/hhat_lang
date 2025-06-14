@@ -275,7 +275,7 @@ measure q -> c;
     block.add_instr(
         IRInstr(
             Symbol("@nez"),
-            IRArgs(CoreLiteral("@1", "@bool"), Symbol("@redim")),
+            IRArgs(Symbol("@true"), Symbol("@redim")),
             InstrIRFlag.CALL,
         )
     )
@@ -307,7 +307,7 @@ measure q -> c;
     block.add_instr(
         IRInstr(
             Symbol("@nez"),
-            IRArgs(CoreLiteral("@1", "@bool"), Symbol("@not")),
+            IRArgs(Symbol("@true"), Symbol("@redim")),
             InstrIRFlag.CALL,
         )
     )

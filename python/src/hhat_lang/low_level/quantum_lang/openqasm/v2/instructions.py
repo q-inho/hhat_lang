@@ -213,6 +213,9 @@ class QNez(QInstr):
         match mask:
             case CoreLiteral():
                 lit = mask
+            case Symbol() if mask.value in ("@true", "@false"):
+                bool_val = "@1" if mask.value == "@true" else "@0"
+                lit = CoreLiteral(bool_val, "@bool")
             case BaseDataContainer() | Symbol():
                 if executor is None:
                     return Error(IndexUnknownError())
