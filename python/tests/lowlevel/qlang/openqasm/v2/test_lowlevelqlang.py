@@ -307,7 +307,7 @@ measure q -> c;
     block.add_instr(
         IRInstr(
             Symbol("@nez"),
-            IRArgs(Symbol("@true"), Symbol("@redim")),
+            IRArgs(Symbol("@true"), Symbol("@not")),
             InstrIRFlag.CALL,
         )
     )
