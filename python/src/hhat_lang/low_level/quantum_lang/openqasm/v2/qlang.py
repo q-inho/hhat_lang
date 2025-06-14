@@ -194,7 +194,11 @@ class LowLeveQLang(BaseLowLevelQLang):
 
             if (x := getattr(obj, "name", False)) and x == instr.name:
 
-                if instr.name == Symbol("@nez"):
+                skip_gen = (
+                    getattr(obj, "flag", QInstrFlag.NONE) == QInstrFlag.SKIP_GEN_ARGS
+                )
+
+                if skip_gen:
                     args: tuple[Any, ...] = tuple(cast(Iterable[Any], instr.args))
                     if len(args) != 2:
                         return InstrStatusError(instr.name)
