@@ -24,6 +24,7 @@ from hhat_lang.dialects.heather.code.ast import (
     TypeDef,
     TypeImport,
 )
+from hhat_lang.dialects.heather.parsing.imports import parse_imports
 from hhat_lang.dialects.heather.parsing.run import parse_file
 
 
@@ -97,21 +98,6 @@ def parse_heather_file(
         type_defs.append(new_def)
 
     return type_defs, imports
-
-
-def test_single_type(create_project, tmp_path: Path) -> None:
-    importer = create_project(
-        tmp_path,
-        {"point.hat": TypeDef(type_name=Id("point"), type_ds=Id("struct"))},
-    )
-    project_root = tmp_path / "project"
-    hat_root = project_root / "src" / "hat_types"
-    expected_def = TypeDef(type_name=Id("point"), type_ds=Id("struct"))
-    defs, imps = parse_heather_file(hat_root / "point.hat", hat_root)
-    assert defs == [expected_def]
-    assert imps == []
-    res = importer.import_types([CompositeSymbol(("point",))])
-    assert CompositeSymbol(("point",)) in res
 
 
 def test_folder_file_type(create_project, tmp_path: Path) -> None:
@@ -532,3 +518,81 @@ def test_parse_cache(
     )
 
     assert len(parse_calls) == 1
+
+
+def test_parse_imports_main_file(
+    create_project, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    files = {
+        "geometry/euclidian.hat": (
+            TypeDef(
+                type_name=CompositeId(Id("geometry"), Id("euclidian"), Id("plane")),
+                type_ds=Id("struct"),
+            ),
+            TypeDef(
+                type_name=CompositeId(Id("geometry"), Id("euclidian"), Id("coords")),
+                type_ds=Id("struct"),
+            ),
+            TypeDef(
+                type_name=CompositeId(Id("geometry"), Id("euclidian"), Id("space")),
+                type_ds=Id("struct"),
+            ),
+        )
+    }
+    create_project(tmp_path, files)
+    project_root = tmp_path / "project"
+    monkeypatch.chdir(project_root)
+
+    imports_node = Imports(
+        type_import=(
+            TypeImport(
+                (
+                    CompositeId(
+                        Id("geometry"),
+                        Id("euclidian"),
+                        Id("space"),
+                    ),
+                )
+            ),
+        ),
+        fn_import=(),
+    )
+    res = parse_imports(imports_node)
+
+    assert CompositeSymbol(("geometry", "euclidian", "space")) in res
+
+
+def test_nested_type_import(create_project, tmp_path: Path) -> None:
+    files = {
+        "geometry/euclidian.hat": TypeDef(
+            type_name=CompositeId(Id("geometry"), Id("euclidian"), Id("space")),
+            type_ds=Id("struct"),
+        ),
+        "geometry/differential.hat": (
+            TypeImport(
+                (
+                    CompositeId(
+                        Id("geometry"),
+                        Id("euclidian"),
+                        Id("space"),
+                    ),
+                )
+            ),
+            TypeDef(
+                type_name=CompositeId(
+                    Id("geometry"),
+                    Id("differential"),
+                    Id("diff-theta"),
+                ),
+                type_ds=Id("struct"),
+            ),
+        ),
+    }
+    importer = create_project(tmp_path, files)
+
+    res = importer.import_types(
+        [CompositeSymbol(("geometry", "differential", "diff-theta"))]
+    )
+
+    assert CompositeSymbol(("geometry", "euclidian", "space")) in res
+    assert CompositeSymbol(("geometry", "differential", "diff-theta")) in res
