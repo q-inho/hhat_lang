@@ -1,10 +1,18 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from enum import Enum, auto
 from typing import Any
 
 from hhat_lang.core import DataParadigm
 from hhat_lang.core.code.utils import InstrStatus
+
+
+class QInstrFlag(Enum):
+    """Flags describing special quantum instruction behavior."""
+
+    NONE = auto()
+    SKIP_GEN_ARGS = auto()
 
 
 class BaseInstr(ABC):
@@ -32,8 +40,16 @@ class BaseInstr(ABC):
 class QInstr(BaseInstr, ABC):
     """Quantum instruction base class"""
 
+    flag: QInstrFlag = QInstrFlag.NONE
+
     def __init__(self):
         self._instr_status = InstrStatus.NOT_STARTED
+
+    @property
+    def skip_gen_args(self) -> bool:
+        """Whether argument generation should be skipped for this instruction."""
+
+        return self.flag == QInstrFlag.SKIP_GEN_ARGS
 
     @property
     def is_quantum(self) -> bool:

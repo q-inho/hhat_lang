@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import importlib
 import inspect
-from typing import Any, Callable
+from typing import Any, Callable, Iterable, cast
 
+from hhat_lang.core.code.instructions import QInstrFlag
 from hhat_lang.core.code.ir import BlockIR, InstrIR, InstrIRFlag, TypeIR
 from hhat_lang.core.code.utils import InstrStatus
 from hhat_lang.core.data.core import (
@@ -65,7 +66,7 @@ class LowLeveQLang(BaseLowLevelQLang):
         var_data = executor.mem.heap[var if isinstance(var, Symbol) else var.name]
         code_tuple: tuple[str, ...] = ()
 
-        for member, data in var_data:
+        for member, data in cast(Iterable[tuple[Any, Any]], var_data):
 
             match data:
                 case Symbol():
@@ -182,6 +183,9 @@ class LowLeveQLang(BaseLowLevelQLang):
             A tuple with OpenQASM v2 code strings
         """
 
+        if not isinstance(instr, InstrIR):
+            return InstrNotFoundError(getattr(instr, "name", None))
+
         instr_module = importlib.import_module(
             name="hhat_lang.low_level.quantum_lang.openqasm.v2.instructions",
         )
@@ -189,10 +193,38 @@ class LowLeveQLang(BaseLowLevelQLang):
         for name, obj in inspect.getmembers(instr_module, inspect.isclass):
 
             if (x := getattr(obj, "name", False)) and x == instr.name:
-                res_instr, res_status = obj()(
-                    idxs=self._idx.in_use_by[self._qdata],
-                    executor=self._executor,
+
+                skip_gen = (
+                    getattr(obj, "flag", QInstrFlag.NONE) == QInstrFlag.SKIP_GEN_ARGS
                 )
+
+                if skip_gen:
+                    args: tuple[Any, ...] = tuple(cast(Iterable[Any], instr.args))
+                    if len(args) != 2:
+                        return InstrStatusError(instr.name)
+
+                    mask, body = args
+
+                    body_cls = None
+                    for n, o in inspect.getmembers(instr_module, inspect.isclass):
+                        if getattr(o, "name", False) == body:
+                            body_cls = o
+                            break
+
+                    if body_cls is None:
+                        return InstrNotFoundError(body)
+
+                    res_instr, res_status = obj()(
+                        idxs=self._idx.in_use_by[self._qdata],
+                        mask=mask,
+                        body_instr=body_cls(),
+                        executor=self._executor,
+                    )
+                else:
+                    res_instr, res_status = obj()(
+                        idxs=self._idx.in_use_by[self._qdata],
+                        executor=self._executor,
+                    )
 
                 if res_status == InstrStatus.DONE:
                     return Ok(res_instr)
@@ -218,18 +250,34 @@ class LowLeveQLang(BaseLowLevelQLang):
             A string with the OpenQASM v2 code.
         """
 
-        code = ""
-        code += "\n".join(self.init_qlang()) + "\n\n"
+        body_code = ""
+
+        instr_module = importlib.import_module(
+            "hhat_lang.low_level.quantum_lang.openqasm.v2.instructions"
+        )
 
         for instr in self._code:  # type: ignore [attr-defined]
 
-            if instr.args:
+            instr_cls = None
+            for name, obj in inspect.getmembers(instr_module, inspect.isclass):
+                if getattr(obj, "name", False) == instr.name:
+                    instr_cls = obj
+                    break
+
+            skip_gen = False
+            if instr_cls is not None:
+                skip_gen = (
+                    getattr(instr_cls, "flag", QInstrFlag.NONE)
+                    == QInstrFlag.SKIP_GEN_ARGS
+                )
+
+            if instr.args and not skip_gen:
 
                 match gen_args := self.gen_args(instr.args):
 
                     case Ok():
                         if gen_args.result():
-                            code += "\n".join(gen_args.result()) + "\n"
+                            body_code += "\n".join(gen_args.result()) + "\n"
 
                     # TODO: implement it better
                     case Error():
@@ -243,7 +291,7 @@ class LowLeveQLang(BaseLowLevelQLang):
             ):
 
                 case Ok():
-                    code += "\n".join(gen_instr.result())
+                    body_code += "\n".join(gen_instr.result())
 
                 case Error():
                     raise gen_instr.result()
@@ -252,6 +300,12 @@ class LowLeveQLang(BaseLowLevelQLang):
                 case ErrorHandler():
                     raise gen_instr
 
+        if not body_code:
+            return ""
+
+        code = ""
+        code += "\n".join(self.init_qlang()) + "\n\n"
+        code += body_code
         code += "\n"
         code += "\n".join(self.end_qlang()) + "\n"
         return code
