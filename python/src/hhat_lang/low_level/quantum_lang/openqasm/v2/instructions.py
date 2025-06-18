@@ -198,6 +198,10 @@ class QNez(QInstr):
     name = "@nez"
     flag = QInstrFlag.SKIP_GEN_ARGS
 
+    # boolean literal helpers
+    QTRUE = CoreLiteral("@true", "@bool")
+    QFALSE = CoreLiteral("@false", "@bool")
+
     @staticmethod
     def _get_mask_idxs(
         mask: CoreLiteral | BaseDataContainer | Symbol,
@@ -214,8 +218,7 @@ class QNez(QInstr):
             case CoreLiteral():
                 lit = mask
             case Symbol() if mask.value in ("@true", "@false"):
-                bool_val = "@1" if mask.value == "@true" else "@0"
-                lit = CoreLiteral(bool_val, "@bool")
+                lit = QNez.QTRUE if mask.value == "@true" else QNez.QFALSE
             case BaseDataContainer() | Symbol():
                 if executor is None:
                     return Error(IndexUnknownError())
@@ -245,15 +248,16 @@ class QNez(QInstr):
         return Ok(idxs)
 
     @staticmethod
-    def _instr(idx: int, body_instr: QInstr) -> str:
+    def _instr(idx: int, body_instr: QInstr, target_idx: int) -> str:
         if hasattr(body_instr, "_instr"):
-            return body_instr._instr(idx)  # type: ignore[attr-defined]
+            return body_instr._instr(target_idx)  # type: ignore[attr-defined]
         raise NotImplementedError("body instruction missing '_instr' method")
 
     def _translate_instrs(
         self,
         idxs: tuple[int, ...],
         mask: CoreLiteral | BaseDataContainer | Symbol,
+        target: tuple[int, ...],
         body_instr: QInstr,
         executor: BaseEvaluator | None = None,
         **kwargs: Any,
@@ -276,9 +280,9 @@ class QNez(QInstr):
         if not mask_idxs:
             return tuple(), InstrStatus.DONE
 
-        selected = tuple(idxs[i] for i in mask_idxs)
+        selected = tuple((idxs[i], target[i]) for i in mask_idxs)
         return (
-            tuple(self._instr(i, body_instr) for i in selected),
+            tuple(self._instr(i, body_instr, t) for i, t in selected),
             InstrStatus.DONE,
         )
 
@@ -287,6 +291,7 @@ class QNez(QInstr):
         *,
         idxs: tuple[int, ...],
         mask: CoreLiteral | BaseDataContainer | Symbol,
+        target: tuple[int, ...],
         body_instr: QInstr,
         executor: BaseEvaluator | None = None,
         **kwargs: Any,
@@ -297,6 +302,7 @@ class QNez(QInstr):
         instrs, status = self._translate_instrs(
             idxs=idxs,
             mask=mask,
+            target=target,
             body_instr=body_instr,
             executor=executor,
             **kwargs,

@@ -218,12 +218,12 @@ measure q -> c;
     block.add_instr(
         IRInstr(
             Symbol("@nez"),
-            IRArgs(CoreLiteral("@5", "@u3"), Symbol("@not")),
+            IRArgs(CoreLiteral("@5", "@u3"), Symbol("@v"), Symbol("@not")),
             InstrIRFlag.CALL,
         )
     )
 
-    qlang = LowLeveQLang(qv, block, mem.idx, ex, Stack())
+    qlang = LowLeveQLang(Symbol("@v"), block, mem.idx, ex, Stack())
     res = qlang.gen_program()
 
     assert res == code_snippet
@@ -243,12 +243,12 @@ def test_gen_program_nez_zero_mask() -> None:
     block.add_instr(
         IRInstr(
             Symbol("@nez"),
-            IRArgs(CoreLiteral("@0", "@u3"), Symbol("@not")),
+            IRArgs(CoreLiteral("@0", "@u3"), Symbol("@v"), Symbol("@not")),
             InstrIRFlag.CALL,
         )
     )
 
-    qlang = LowLeveQLang(qv, block, mem.idx, ex, Stack())
+    qlang = LowLeveQLang(Symbol("@v"), block, mem.idx, ex, Stack())
     res = qlang.gen_program()
 
     assert res == code_snippet
@@ -275,12 +275,12 @@ measure q -> c;
     block.add_instr(
         IRInstr(
             Symbol("@nez"),
-            IRArgs(Symbol("@true"), Symbol("@redim")),
+            IRArgs(Symbol("@true"), Symbol("@v"), Symbol("@redim")),
             InstrIRFlag.CALL,
         )
     )
 
-    qlang = LowLeveQLang(qv, block, mem.idx, ex, Stack())
+    qlang = LowLeveQLang(Symbol("@v"), block, mem.idx, ex, Stack())
     res = qlang.gen_program()
 
     assert res == code_snippet
@@ -307,12 +307,12 @@ measure q -> c;
     block.add_instr(
         IRInstr(
             Symbol("@nez"),
-            IRArgs(Symbol("@true"), Symbol("@not")),
+            IRArgs(Symbol("@true"), Symbol("@v"), Symbol("@not")),
             InstrIRFlag.CALL,
         )
     )
 
-    qlang = LowLeveQLang(qv, block, mem.idx, ex, Stack())
+    qlang = LowLeveQLang(Symbol("@v"), block, mem.idx, ex, Stack())
     res = qlang.gen_program()
 
     assert res == code_snippet

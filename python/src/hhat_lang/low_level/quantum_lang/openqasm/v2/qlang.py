@@ -200,10 +200,10 @@ class LowLeveQLang(BaseLowLevelQLang):
 
                 if skip_gen:
                     args: tuple[Any, ...] = tuple(cast(Iterable[Any], instr.args))
-                    if len(args) != 2:
+                    if len(args) != 3:
                         return InstrStatusError(instr.name)
 
-                    mask, body = args
+                    mask, target, body = args
 
                     body_cls = None
                     for n, o in inspect.getmembers(instr_module, inspect.isclass):
@@ -214,9 +214,23 @@ class LowLeveQLang(BaseLowLevelQLang):
                     if body_cls is None:
                         return InstrNotFoundError(body)
 
+                    target_var = (
+                        target
+                        if isinstance(target, Symbol)
+                        else getattr(target, "name", None)
+                    )
+                    target_idxs = (
+                        self._idx.in_use_by.get(
+                            target_var, self._idx.in_use_by[self._qdata]
+                        )
+                        if target_var
+                        else self._idx.in_use_by[self._qdata]
+                    )
+
                     res_instr, res_status = obj()(
                         idxs=self._idx.in_use_by[self._qdata],
                         mask=mask,
+                        target=tuple(target_idxs),
                         body_instr=body_cls(),
                         executor=self._executor,
                     )

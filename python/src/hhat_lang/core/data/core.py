@@ -183,7 +183,10 @@ class CoreLiteral(WorkingData):
         self._type = lit_type
         self._is_quantum = True if lit_type.startswith("@") else False
         self._suppress_type = False
-        self._bin_form = bin(int(value.strip("@")))[2:]
+        if lit_type == "@bool" and value in ("@true", "@false"):
+            self._bin_form = "1" if value == "@true" else "0"
+        else:
+            self._bin_form = bin(int(value.strip("@")))[2:]
 
     @property
     def value(self) -> str:
