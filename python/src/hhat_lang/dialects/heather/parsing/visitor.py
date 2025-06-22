@@ -10,7 +10,7 @@ from hhat_lang.dialects.heather.code.ast import (
     Body,
     Call,
     CallArgs,
-    CallWithArgsBodyOptions,
+    CallWithArgsOptions,
     CallWithBody,
     CallWithBodyOptions,
     Cast,
@@ -176,10 +176,10 @@ class ParserVisitor(PTNodeVisitor):
     ) -> AST:
         return CallWithBodyOptions(*child[2:], caller=child[0], args=child[1])
 
-    def visit_callwithargsbodyoptions(
+    def visit_callwithargsoptions(
         self, _: NonTerminal, child: SemanticActionResults
     ) -> AST:
-        return CallWithArgsBodyOptions(*child[1:], caller=child[0])
+        return CallWithArgsOptions(*child[1:], caller=child[0])
 
     def visit_id_composite_value(
         self, _: NonTerminal, child: SemanticActionResults

@@ -4,6 +4,8 @@ import importlib
 import inspect
 from typing import Any, Callable
 
+from mypy.stubutil import NOT_IMPORTABLE_MODULES
+
 from hhat_lang.core.code.ir import BlockIR, InstrIR, InstrIRFlag, TypeIR
 from hhat_lang.core.code.utils import InstrStatus
 from hhat_lang.core.data.core import (
@@ -17,7 +19,7 @@ from hhat_lang.core.data.variable import BaseDataContainer
 from hhat_lang.core.error_handlers.errors import (
     ErrorHandler,
     InstrNotFoundError,
-    InstrStatusError,
+    InstrStatusError, HeapInvalidKeyError,
 )
 from hhat_lang.core.execution.abstract_base import BaseEvaluator
 from hhat_lang.core.lowlevel.abstract_qlang import BaseLowLevelQLang
@@ -50,10 +52,30 @@ class LowLeveQLang(BaseLowLevelQLang):
 
         return ("measure q -> c;",)
 
+    def _gen_literal_int(self, literal: CoreLiteral) -> tuple[str, ...]:
+        if literal in self._idx:
+            (literal.type)
+            return tuple(f"x q[{n}];" for n, k in enumerate(literal.bin) if k == "1")
+
+    def _gen_literal_bool(self, literal: CoreLiteral) -> tuple[str, ...]:
+        return tuple("x q[")
+
     def gen_literal(
         self, literal: CoreLiteral, **_kwargs: Any
     ) -> tuple[str, ...] | ErrorHandler:
         """Generate QASM code from literal data"""
+
+        match literal.type:
+            case "@int" | "@u2" | "@u3" | "@u4":
+                return self._gen_literal_int(literal)
+
+            case "@bool":
+                return self._gen_literal_bool(literal)
+
+            case _:
+                raise NotImplementedError(
+                    "Generating quantum literal not implemented yet."
+                )
 
         return tuple(f"x q[{n}];" for n, k in enumerate(literal.bin) if k == "1")
 
@@ -65,48 +87,53 @@ class LowLeveQLang(BaseLowLevelQLang):
         var_data = executor.mem.heap[var if isinstance(var, Symbol) else var.name]
         code_tuple: tuple[str, ...] = ()
 
-        for member, data in var_data:
-            match data:
-                case Symbol():
-                    d_res = self.gen_var(data, executor=self._executor)
+        match var_data:
+            case BaseDataContainer():
+                for member, data in var_data:
+                    match data:
+                        case Symbol():
+                            d_res = self.gen_var(data, executor=self._executor)
 
-                    if isinstance(d_res, tuple):
-                        code_tuple += d_res
+                            if isinstance(d_res, tuple):
+                                code_tuple += d_res
 
-                    else:
-                        return d_res
+                            else:
+                                return d_res
 
-                case CoreLiteral():
-                    d_res = self.gen_literal(data)
+                        case CoreLiteral():
+                            d_res = self.gen_literal(data)
 
-                    if isinstance(d_res, tuple):
-                        code_tuple += d_res
+                            if isinstance(d_res, tuple):
+                                code_tuple += d_res
 
-                    else:
-                        return d_res
+                            else:
+                                return d_res
 
-                case CompositeSymbol():
-                    # TODO: implement it
-                    raise NotImplementedError()
+                        case CompositeSymbol():
+                            # TODO: implement it
+                            raise NotImplementedError()
 
-                case CompositeLiteral():
-                    # TODO: implement it
-                    raise NotImplementedError()
+                        case CompositeLiteral():
+                            # TODO: implement it
+                            raise NotImplementedError()
 
-                case CompositeMixData():
-                    # TODO: implement it
-                    raise NotImplementedError()
+                        case CompositeMixData():
+                            # TODO: implement it
+                            raise NotImplementedError()
 
-                case InstrIR():
-                    match res := self.gen_instrs(instr=data, executor=self._executor):
-                        case Ok():
-                            code_tuple += res.result()
+                        case InstrIR():
+                            match res := self.gen_instrs(instr=data, executor=self._executor):
+                                case Ok():
+                                    code_tuple += res.result()
 
-                        case Error():
-                            return res.result()
+                                case Error():
+                                    return res.result()
 
-                        case ErrorHandler():
-                            return res
+                                case ErrorHandler():
+                                    return res
+
+            case HeapInvalidKeyError():
+                raise NotImplementedError()
 
         return code_tuple
 
@@ -198,7 +225,7 @@ class LowLeveQLang(BaseLowLevelQLang):
             # back to H-hat dialect to execute it
             else:
                 # TODO: falls back to dialect execution
-                pass
+                raise NotImplementedError(f"low-level qlang instr error: {x} ({type(x)})")
 
         return InstrNotFoundError(instr.name)
 

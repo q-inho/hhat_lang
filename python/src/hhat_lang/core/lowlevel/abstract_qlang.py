@@ -4,9 +4,9 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from hhat_lang.core.data.core import WorkingData
-from hhat_lang.core.error_handlers.errors import ErrorHandler
+from hhat_lang.core.error_handlers.errors import ErrorHandler, IndexInvalidVarError
 from hhat_lang.core.execution.abstract_base import BaseEvaluator
-from hhat_lang.core.memory.core import BaseStack, IndexManager
+from hhat_lang.core.memory.core import BaseStack, IndexManager, SymbolTable
 from hhat_lang.core.utils import Result
 from hhat_lang.dialects.heather.code.simple_ir_builder.ir import IRBlock
 
@@ -23,6 +23,7 @@ class BaseLowLevelQLang(ABC):
     _idx: IndexManager
     _executor: BaseEvaluator
     _qstack: BaseStack
+    _symbol: SymbolTable
 
     def __init__(
         self,
@@ -31,6 +32,7 @@ class BaseLowLevelQLang(ABC):
         idx: IndexManager,
         executor: BaseEvaluator,
         qstack: BaseStack,
+        symboltable: SymbolTable,
         *_args: Any,
         **_kwargs: Any,
     ):
@@ -39,7 +41,15 @@ class BaseLowLevelQLang(ABC):
         self._idx = idx
         self._executor = executor
         self._qstack = qstack
-        self._num_idxs = len(self._idx.in_use_by.get(self._qdata, []))
+        self._symbol = symboltable
+
+        match res := self._idx.in_use_by[self._qdata]:
+            case IndexInvalidVarError():
+                # TODO: handle this error properly
+                raise res
+
+            case _:
+                self._num_idxs = len(res)
 
     @abstractmethod
     def init_qlang(self) -> tuple[str, ...]: ...

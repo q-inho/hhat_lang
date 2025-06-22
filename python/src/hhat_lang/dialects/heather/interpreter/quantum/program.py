@@ -42,7 +42,7 @@ from hhat_lang.core.error_handlers.errors import ErrorHandler
 from hhat_lang.core.execution.abstract_base import BaseEvaluator
 from hhat_lang.core.execution.abstract_program import BaseProgram
 from hhat_lang.core.lowlevel.abstract_qlang import BaseLowLevelQLang
-from hhat_lang.core.memory.core import BaseStack, IndexManager, Stack
+from hhat_lang.core.memory.core import BaseStack, IndexManager, Stack, SymbolTable
 from hhat_lang.dialects.heather.code.simple_ir_builder.ir import IRBlock
 
 # TODO: the imports below must come from the config file, not hardcoded
@@ -59,9 +59,10 @@ class Program(BaseProgram):
         idx: IndexManager,
         block: IRBlock,
         executor: BaseEvaluator,
+        symboltable: SymbolTable,
         qlang: Type[  # type: ignore [type-arg]
             BaseLowLevelQLang[
-                WorkingData, IRBlock | BlockIR, IndexManager, BaseEvaluator, Stack
+                WorkingData, IRBlock | BlockIR, IndexManager, BaseEvaluator, Stack, SymbolTable
             ]
         ],
     ):
@@ -75,8 +76,9 @@ class Program(BaseProgram):
             self._block = block
             self._executor = executor
             self._qstack = Stack()
+            self._symbol = symboltable
             self._qlang = qlang(
-                self._qdata, self._block, self._idx, self._executor, self._qstack
+                self._qdata, self._block, self._idx, self._executor, self._qstack, self._symbol
             )
 
         else:

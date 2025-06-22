@@ -5,6 +5,7 @@ from collections import deque
 from queue import LifoQueue
 from uuid import UUID
 
+from hhat_lang.core.code.ir import BlockIR
 from hhat_lang.core.data.core import (
     CompositeLiteral,
     CompositeMixData,
@@ -12,6 +13,7 @@ from hhat_lang.core.data.core import (
     Symbol,
     WorkingData,
 )
+from hhat_lang.core.data.fn_def import BaseFnKey, BaseFnCheck
 from hhat_lang.core.data.variable import BaseDataContainer
 from hhat_lang.core.error_handlers.errors import (
     ErrorHandler,
@@ -20,6 +22,7 @@ from hhat_lang.core.error_handlers.errors import (
     IndexInvalidVarError,
     IndexUnknownError,
     IndexVarHasIndexesError,
+    SymbolTableInvalidKeyError,
 )
 
 
@@ -99,6 +102,19 @@ class IndexManager:
         """
 
         return self._in_use_by
+
+    def __getitem__(self, item: WorkingData) -> deque | IndexInvalidVarError:
+        """Return the deque of indexes from a quantum data."""
+
+        if res := self._in_use_by.get(item, False):
+            return res
+
+        return IndexInvalidVarError(var_name=item)
+
+    def __contains__(self, item: WorkingData) -> bool:
+        """Checks whether there is item in the IndexManager."""
+
+        return item in self._in_use_by
 
     def _alloc_idxs(self, num_idxs: int) -> deque | IndexAllocationError:
         available = self._max_num_index - self._num_allocated
@@ -264,7 +280,32 @@ class Heap(BaseHeap):
 class SymbolTable:
     """To store types and functions"""
 
-    pass
+    _types: dict[WorkingData, BlockIR]
+    _fns: dict[BaseFnKey, BlockIR]
+
+    def __init__(self):
+        self._types = dict()
+        self._fns = dict()
+
+    def add_type(self, item: WorkingData, type_def: BlockIR) -> None:
+        if item not in self._types and isinstance(type_def, BlockIR):
+            self._types[item] = type_def
+
+    def add_fn(self, fn: BaseFnKey, fn_def: BlockIR) -> None:
+        if fn not in self._fns and isinstance(fn_def, BlockIR):
+            self._fns[fn] = fn_def
+
+    def get_type(self, item: WorkingData) -> BlockIR | SymbolTableInvalidKeyError:
+        if item in self._types:
+            return self._types[item]
+
+        return SymbolTableInvalidKeyError(item, SymbolTableInvalidKeyError.Type())
+
+    def get_fn(self, item: BaseFnCheck) -> BlockIR | SymbolTableInvalidKeyError:
+        if item in self._fns:
+            return self._fns[item]
+
+        return SymbolTableInvalidKeyError(item, SymbolTableInvalidKeyError.Fn())
 
 
 ########################
@@ -277,9 +318,10 @@ class BaseMemoryManager(ABC):
     _stack: BaseStack
     _heap: BaseHeap
     _pid: PIDManager
+    _symbol: SymbolTable
 
     @property
-    def index(self) -> IndexManager:
+    def idx(self) -> IndexManager:
         return self._idx
 
     @property
@@ -289,6 +331,10 @@ class BaseMemoryManager(ABC):
     @property
     def heap(self) -> BaseHeap:
         return self._heap
+
+    @property
+    def symbol(self) -> SymbolTable:
+        return self._symbol
 
     @property
     def pid(self) -> PIDManager:
@@ -296,7 +342,7 @@ class BaseMemoryManager(ABC):
 
 
 class MemoryManager(BaseMemoryManager):
-    """Manages the stack, heap, pid, and index."""
+    """Manages the stack, heap, symbol table, pid, and index."""
 
     def __init__(self, max_num_index: int):
         self._stack = Stack()
@@ -304,22 +350,6 @@ class MemoryManager(BaseMemoryManager):
         self._symbol = SymbolTable()
         self._pid = PIDManager()
         self._idx = IndexManager(max_num_index)
-
-    @property
-    def stack(self) -> BaseStack:
-        return self._stack
-
-    @property
-    def heap(self) -> BaseHeap:
-        return self._heap
-
-    @property
-    def symboltable(self) -> SymbolTable:
-        return self._symbol
-
-    @property
-    def idx(self) -> IndexManager:
-        return self._idx
 
 
 MemoryDataTypes = (

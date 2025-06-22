@@ -18,7 +18,7 @@ ACCEPTABLE_VALUES: dict = {
 
 
 class InvalidType:
-    """It just exists to be used as 'default' instance for the `ACCEPTABLE_VALUES` above."""
+    """It just exists to be used as 'default' instance for the ``ACCEPTABLE_VALUES`` above."""
 
     pass
 
@@ -184,10 +184,6 @@ class CoreLiteral(WorkingData):
         self._is_quantum = True if lit_type.startswith("@") else False
         self._suppress_type = False
         self._bin_form = bin(int(value.strip("@")))[2:]
-
-    @property
-    def value(self) -> str:
-        return self._value
 
     @property
     def bin(self) -> str:

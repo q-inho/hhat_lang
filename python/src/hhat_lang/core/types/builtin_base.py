@@ -140,8 +140,3 @@ def int_to_uN(
 
     # something else?
     raise NotImplementedError()
-
-
-# classical
-
-# quantum

@@ -13,7 +13,7 @@ from hhat_lang.core.types.builtin_base import BuiltinSingleDS
 # classical #
 # -----------#
 
-Int = BuiltinSingleDS(Symbol("int"))
+Int = BuiltinSingleDS(Symbol("int"), Size(64))
 Bool = BuiltinSingleDS(Symbol("bool"), Size(8))
 U16 = BuiltinSingleDS(Symbol("u16"), Size(16))
 U32 = BuiltinSingleDS(Symbol("u32"), Size(32))

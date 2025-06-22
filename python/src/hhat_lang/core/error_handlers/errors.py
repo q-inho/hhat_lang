@@ -36,6 +36,8 @@ class ErrorCodes(Enum):
     HEAP_INVALID_KEY_ERROR = auto()
     HEAP_EMPTY_ERROR = auto()
 
+    SYMBOLTABLE_INVALID_KEY_ERROR = auto()
+
     INVALID_QUANTUM_COMPUTED_RESULT = auto()
 
     INSTR_NOTFOUND_ERROR = auto()
@@ -302,6 +304,24 @@ class HeapInvalidKeyError(ErrorHandler):
 
     def __call__(self) -> str:
         return f"[[{self.__class__.__name__}]]: key '{self._key}' is invalid."
+
+
+class SymbolTableInvalidKeyError(ErrorHandler):
+    def __init__(self, key: Any, key_type: str):
+        super().__init__(ErrorCodes.SYMBOLTABLE_INVALID_KEY_ERROR)
+        self._key = key
+        self._key_type = key_type
+
+    @classmethod
+    def Type(cls) -> str:
+        return "type"
+
+    @classmethod
+    def Fn(cls) -> str:
+        return "fn"
+
+    def __call__(self) -> str:
+        return f"[[{self.__class__.__name__}]]: key '{self._key}' is invalid for {self._key_type}."
 
 
 class InvalidQuantumComputedResult(ErrorHandler):

@@ -175,7 +175,7 @@ class CallWithBodyOptions(Node):
         self._name = self.__class__.__name__
 
 
-class CallWithArgsBodyOptions(Node):
+class CallWithArgsOptions(Node):
     def __init__(self, *arg_options: InsideOption, caller: TypeType):
         self._value = (caller, arg_options)
         self._name = self.__class__.__name__

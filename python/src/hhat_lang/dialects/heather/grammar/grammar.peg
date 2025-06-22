@@ -27,7 +27,7 @@ id_composite_value          = ( '[' id ']' ) / id
 main                        = 'main' body
 
 body                        = '{' (declare / assign / declareassign / expr)* '}'
-expr                        = cast / callwithargsbodyoptions / callwithbodyoptions / callwithbody / call / array / id / literal
+expr                        = cast / callwithargsoptions / callwithbodyoptions / callwithbody / call / array / id / literal
 declare                     = simple_id modifier? ':' id
 assign                      = id '=' expr
 declareassign               = simple_id modifier? ':' id '=' expr
@@ -38,7 +38,7 @@ callargs                    = simple_id ':' valonly
 valonly                     = array / literal / id
 option                      = (( call / array / id ) ':' body)
 callwithbodyoptions         = id '(' args* ')' '{' option+ '}'
-callwithargsbodyoptions     = id '(' option+ ')'
+callwithargsoptions     = id '(' option+ ')'
 callwithbody                = id '(' args* ')' body
 
 array                       = '[' ( literal / composite_id_with_closure / id )* ']'
