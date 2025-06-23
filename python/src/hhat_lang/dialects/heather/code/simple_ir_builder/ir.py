@@ -10,7 +10,7 @@ from copy import deepcopy
 from enum import Enum, auto
 from typing import Any, Iterable
 
-from hhat_lang.core.data.core import Symbol, WorkingData, CoreLiteral, CompositeSymbol
+from hhat_lang.core.data.core import Symbol, WorkingData, CompositeSymbol
 
 
 # FIXME: quick fix for now, before the new IR is ready
@@ -367,13 +367,3 @@ class IR:
         for k, v in self:
             content += f"  {k}\n{v}\n"
         return f"[\n{content}]"
-
-
-if __name__ == "__main__":
-    ir1 = IR()
-    i1 = IRDeclare(var=Symbol("@q"), var_type=Symbol("@u3"))
-    i2 = IRAssign(var=Symbol("@q"), value=CoreLiteral(value="@1", lit_type="@int"))
-    i3 = IRCall(caller=Symbol("@redim"), args=IRArgs(Symbol("@q")))
-    block1 = IRBlock(i1, i2, i3)
-    ir1.add_new_block(block1)
-    print(ir1)

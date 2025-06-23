@@ -24,6 +24,7 @@ from hhat_lang.core.error_handlers.errors import (
     IndexVarHasIndexesError,
     SymbolTableInvalidKeyError,
 )
+from hhat_lang.core.types.abstract_base import BaseTypeDataStructure
 
 
 class PIDManager:
@@ -280,22 +281,22 @@ class Heap(BaseHeap):
 class SymbolTable:
     """To store types and functions"""
 
-    _types: dict[WorkingData, BlockIR]
+    _types: dict[WorkingData, BaseTypeDataStructure]
     _fns: dict[BaseFnKey, BlockIR]
 
     def __init__(self):
         self._types = dict()
         self._fns = dict()
 
-    def add_type(self, item: WorkingData, type_def: BlockIR) -> None:
-        if item not in self._types and isinstance(type_def, BlockIR):
+    def add_type(self, item: WorkingData, type_def: BaseTypeDataStructure) -> None:
+        if item not in self._types and isinstance(type_def, BaseTypeDataStructure):
             self._types[item] = type_def
 
     def add_fn(self, fn: BaseFnKey, fn_def: BlockIR) -> None:
-        if fn not in self._fns and isinstance(fn_def, BlockIR):
+        if fn not in self._fns:  # and isinstance(fn_def, BlockIR):
             self._fns[fn] = fn_def
 
-    def get_type(self, item: WorkingData) -> BlockIR | SymbolTableInvalidKeyError:
+    def get_type(self, item: WorkingData) -> BaseTypeDataStructure | SymbolTableInvalidKeyError:
         if item in self._types:
             return self._types[item]
 

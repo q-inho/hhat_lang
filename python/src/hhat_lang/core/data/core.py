@@ -130,7 +130,7 @@ class CompositeWorkingData:
 
     def __repr__(self) -> str:
         txt = "" if self.type is None or self._suppress_type else f":{self.type}"
-        return " ".join(str(k) for k in self._group) + f"{txt}"
+        return ".".join(str(k) for k in self._group) + f"{txt}"
 
 
 class Symbol(WorkingData):
