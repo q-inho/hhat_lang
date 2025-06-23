@@ -3,7 +3,9 @@ from __future__ import annotations
 import pytest
 from hhat_lang.core.code.ir import TypeIR
 from hhat_lang.core.data.core import CoreLiteral, Symbol
-from hhat_lang.core.memory.core import MemoryManager, Stack, SymbolTable
+from hhat_lang.core.error_handlers.errors import InstrStatusError
+from hhat_lang.core.memory.core import MemoryManager, Stack
+from hhat_lang.core.utils import Ok
 from hhat_lang.dialects.heather.code.simple_ir_builder.ir import (
     FnIR,
     IRArgs,
@@ -11,6 +13,10 @@ from hhat_lang.dialects.heather.code.simple_ir_builder.ir import (
     IRCall,
 )
 from hhat_lang.dialects.heather.interpreter.classical.executor import Evaluator
+from hhat_lang.low_level.quantum_lang.openqasm.v2.instructions import (
+    QNez,
+    QNot,
+)
 from hhat_lang.low_level.quantum_lang.openqasm.v2.qlang import LowLeveQLang
 
 
@@ -187,3 +193,123 @@ measure q -> c;
     res = qlang.gen_program()
 
     assert res == code_snippet
+
+
+def test_gen_program_nez_not_u3() -> None:
+    code_snippet = """OPENQASM 2.0;
+include \"qelib1.inc\";
+qreg q[3];
+creg c[3];
+
+x q[0];
+x q[2];
+measure q -> c;
+"""
+
+    qv = Symbol("@v")
+    mem = MemoryManager(5)
+    mem.idx.add(qv, 3)
+    mem.idx.request(qv)
+
+    ex = Evaluator(mem, TypeIR(), FnIR())
+
+    block = IRBlock(IRCall(
+            Symbol("@nez"),
+            IRArgs(CoreLiteral("@5", "@u3"), Symbol("@not")),
+        )
+    )
+
+    qlang = LowLeveQLang(qv, block, mem.idx, ex, Stack())
+    res = qlang.gen_program()
+
+    assert res == code_snippet
+
+
+def test_gen_program_nez_zero_mask() -> None:
+    code_snippet = ""
+
+    qv = Symbol("@v")
+    mem = MemoryManager(5)
+    mem.idx.add(qv, 3)
+    mem.idx.request(qv)
+
+    ex = Evaluator(mem, TypeIR(), FnIR())
+
+    block = IRBlock(IRCall(
+            Symbol("@nez"),
+            IRArgs(CoreLiteral("@0", "@u3"), Symbol("@not")),
+        )
+    )
+
+    qlang = LowLeveQLang(qv, block, mem.idx, ex, Stack())
+    res = qlang.gen_program()
+
+    assert res == code_snippet
+
+
+def test_gen_program_nez_redim_small_mask() -> None:
+    code_snippet = """OPENQASM 2.0;
+include \"qelib1.inc\";
+qreg q[3];
+creg c[3];
+
+h q[0];
+measure q -> c;
+"""
+
+    qv = Symbol("@v")
+    mem = MemoryManager(5)
+    mem.idx.add(qv, 3)
+    mem.idx.request(qv)
+
+    ex = Evaluator(mem, TypeIR(), FnIR())
+
+    block = IRBlock(IRCall(
+            Symbol("@nez"),
+            IRArgs(Symbol("@true"), Symbol("@redim")),
+        )
+    )
+
+    qlang = LowLeveQLang(qv, block, mem.idx, ex, Stack())
+    res = qlang.gen_program()
+
+    assert res == code_snippet
+
+
+def test_gen_program_nez_bool_not() -> None:
+    code_snippet = """OPENQASM 2.0;
+include \"qelib1.inc\";
+qreg q[1];
+creg c[1];
+
+x q[0];
+measure q -> c;
+"""
+
+    qv = Symbol("@v")
+    mem = MemoryManager(5)
+    mem.idx.add(qv, 1)
+    mem.idx.request(qv)
+
+    ex = Evaluator(mem, TypeIR(), FnIR())
+
+    block = IRBlock(IRCall(
+            Symbol("@nez"),
+            IRArgs(Symbol("@true"), Symbol("@not")),
+        )
+    )
+
+    qlang = LowLeveQLang(qv, block, mem.idx, ex, Stack())
+    res = qlang.gen_program()
+
+    assert res == code_snippet
+
+
+@pytest.mark.skip()
+def test_qinstr_flag_skip_gen_args() -> None:
+    """Ensure instructions with the flag skip argument generation."""
+
+    # assert QNez.flag == QInstrFlag.SKIP_GEN_ARGS
+    # assert QNez().skip_gen_args
+    # assert QNot.flag == QInstrFlag.NONE
+    # assert not QNot().skip_gen_args

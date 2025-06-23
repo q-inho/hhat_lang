@@ -217,7 +217,14 @@ class ParserVisitor(PTNodeVisitor):
 
                 case Id() | CompositeId() | CompositeIdWithClosure():
                     types += (k,)
-
+                case ManyTypeImport():
+                    for t in k:
+                        if isinstance(t, (Id, CompositeId, CompositeIdWithClosure)):
+                            types += (t,)
+                        else:
+                            raise ValueError(
+                                "something went wrong when defining type import."
+                            )
                 case _:
                     raise ValueError(
                         f"something went wrong when defining type import: {k} ({type(k)})"
