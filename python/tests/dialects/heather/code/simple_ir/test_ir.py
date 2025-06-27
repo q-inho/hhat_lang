@@ -34,7 +34,7 @@ def test_dac1() -> None:
     assert block1.instrs == (i1, i2, i3)
 
     ir1 = IR()
-    ir1.add_new_block(block1)
+    ir1.add_block(block1)
     assert block1.name in ir1.table
     assert ir1.table[block1.name] == block1
 

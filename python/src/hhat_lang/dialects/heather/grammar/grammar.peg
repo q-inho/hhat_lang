@@ -32,13 +32,13 @@ declare                     = simple_id modifier? ':' id
 assign                      = id '=' expr
 declareassign               = simple_id modifier? ':' id '=' expr
 cast                        = ( call / literal / id ) '*' id
-call                        = (trait_id '.')? id '(' args* ')'
+call                        = (trait_id '.')? id '(' args* ')' modifier?
 args                        = callargs / call / valonly
 callargs                    = simple_id ':' valonly
 valonly                     = array / literal / id
 option                      = (( call / array / id ) ':' body)
 callwithbodyoptions         = id '(' args* ')' '{' option+ '}'
-callwithargsoptions     = id '(' option+ ')'
+callwithargsoptions         = id '(' option+ ')'
 callwithbody                = id '(' args* ')' body
 
 array                       = '[' ( literal / composite_id_with_closure / id )* ']'

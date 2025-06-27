@@ -56,7 +56,7 @@ class SymbolOrdered(Mapping):
         if isinstance(key, int):
             return self._data[key]
 
-        raise ValueError(key)
+        raise KeyError(key)
 
     def __len__(self) -> int:
         return len(self._data)

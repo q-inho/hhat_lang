@@ -49,12 +49,12 @@ class BuiltinSingleDS(BaseTypeDataStructure):
     ):
         super().__init__(name, is_builtin=True)
         self._type_container: SymbolOrdered = SymbolOrdered({0: name})
-        self._bitsize = bitsize
+        self._size = bitsize
         self._qsize = qsize if qsize is not None else QSize(0, 0)
 
     @property
     def bitsize(self) -> Size | None:
-        return self._bitsize
+        return self._size
 
     def cast_from(
         self, data: WorkingData, cast_fn: Callable

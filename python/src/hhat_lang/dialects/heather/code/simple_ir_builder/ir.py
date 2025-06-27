@@ -11,6 +11,8 @@ from enum import Enum, auto
 from typing import Any, Iterable
 
 from hhat_lang.core.data.core import Symbol, WorkingData, CompositeSymbol
+from hhat_lang.core.data.fn_def import BaseFnKey
+from hhat_lang.core.types.abstract_base import BaseTypeDataStructure
 
 
 # FIXME: quick fix for now, before the new IR is ready
@@ -315,29 +317,86 @@ class IRCallWithOption(IRBaseInstr):
 # IR ROOT CLASS #
 #################
 
+
+class IRTypes:
+    """
+    This class holds types definitions as ``BaseTypeDataStructure`` objects.
+
+    Together with ``IRFns`` and ``IR`` it provides the base for an IR object
+    picturing the full code.
+    """
+
+    table: dict[Symbol | CompositeSymbol, BaseTypeDataStructure]
+
+    def __init__(self):
+        self.table = dict()
+
+    def add(self, name: Symbol | CompositeSymbol, data: BaseTypeDataStructure) -> None:
+        if (
+            name not in self.table
+            and isinstance(name, Symbol | CompositeSymbol)
+            and isinstance(data, BaseTypeDataStructure)
+        ):
+            self.table[name] = data
+
+    def __len__(self) -> int:
+        return len(self.table)
+
+    def __repr__(self) -> str:
+        content = "\n      ".join(f"{v}" for v in self.table.values())
+        return f"\n  types:\n      {content}\n"
+
+
+class IRFns:
+    """
+    This class holds functions definitions as ``BaseFnKey`` for function
+    entry (function name, type and arguments) and its body (content).
+
+    Together with ``IRTypes`` and ``IR`` it provides the base for an IR object
+    picturing the full code.
+    """
+
+    table: dict[BaseFnKey, IRBlock]
+
+    def __init__(self):
+        self.table = dict()
+
+    def add(self, fn_entry: BaseFnKey, data: IRBlock) -> None:
+        if (
+            fn_entry not in self.table
+            and isinstance(fn_entry, BaseFnKey)
+            and isinstance(data, IRBlock)
+        ):
+            self.table[fn_entry] = data
+
+    def __len__(self) -> int:
+        return len(self.table)
+
+    def __repr__(self) -> str:
+        content = "\n      ".join(f"{k}:\n          {v}" for k, v in self.table.items())
+        return f"\n  fns:\n      {content}\n"
+
+
 class IR:
     """
     This class creates a new intermediate representation object that should
     hold the whole program code. The code can be only in terms of ``WorkingData``
     and ``IRBlock`` objects. An interpreter or compiler should evaluate its content.
 
-    **Note**: function definitions must be created as separate ``IRBlock`` objects
-    and populated in ``MemoryManager`` for further call/reference during evaluation.
-
-    **Note2**: type definitions must be transformed from AST directly into
-    ``BaseTypeDataStructure``.
+    Together with ``IRFns`` and ``IRTypes`` it provides the base for an IR object
+    picturing the full code.
     """
 
-    table: dict[BlockRef, IRBlock]
+    code_block: dict[BlockRef, IRBlock]
 
     def __init__(self):
-        self.table = dict()
+        self.code_block = dict()
 
     def add_ref(self, ref: BlockRef, code: IRBlock) -> None:
-        self.table[ref] = code
+        self.code_block[ref] = code
 
-    def add_new_block(self, block: IRBlock) -> None:
-        if block.name not in self.table:
+    def add_block(self, block: IRBlock) -> None:
+        if block.name not in self.code_block:
             self.add_ref(block.name, block)
 
             # iterate over each instruction to check for new blocks
@@ -347,7 +406,7 @@ class IR:
 
                     # blocks will have the same check as above
                     case IRBlock():
-                        if k.name not in self.table:
+                        if k.name not in self.code_block:
                             self.add_ref(k.name, k)
 
                     # instructions will have a check on their block_refs
@@ -356,14 +415,45 @@ class IR:
                         # iterating over all the blocks in the instruction
                         for p, q in k.block_refs.items():
 
-                            if p not in self.table:
+                            if p not in self.code_block:
                                 self.add_ref(p, q)
 
     def __iter__(self) -> Iterable:
-        yield from self.table.items()
+        yield from self.code_block.items()
 
     def __repr__(self) -> str:
-        content = ""
-        for k, v in self:
-            content += f"  {k}\n{v}\n"
-        return f"[\n{content}]"
+        content = "  main:\n"
+        content += "\n".join(f"    {k}\n      {v}" for k, v in self)
+        return f"\n{content}"
+
+
+class IRProgram:
+    """
+    Holds all IR content
+    """
+
+    main: IR
+    types: IRTypes
+    fns: IRFns
+
+    def __init__(
+        self,
+        *,
+        main: IR | None = None,
+        types: IRTypes | None = None,
+        fns: IRFns | None = None
+    ):
+        if (
+            isinstance(main, IR)
+            or main is None
+            and isinstance(types, IRTypes)
+            or types is None
+            and isinstance(fns, IRFns)
+            or fns is None
+        ):
+            self.main = main
+            self.types = types
+            self.fns = fns
+
+    def __repr__(self) -> str:
+        return f"\n[ir/start]{self.types}{self.fns}{self.main}[ir/end]\n"

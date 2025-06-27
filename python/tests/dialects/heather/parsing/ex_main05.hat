@@ -1,9 +1,9 @@
 use (
   type:[
-    geometry.{euclidian.space differential.form}
+    geometry.{euclidian.{line plane} differential.normal}
     std.io.socket
   ]
-  fn:math.{sin cos tan}
+  fn:math.{sin floor}
 )
 
 main {}

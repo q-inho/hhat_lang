@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from typing import Any, Iterable
 
 from hhat_lang.core.data.core import Symbol, CompositeSymbol
@@ -96,6 +95,15 @@ class BaseFnKey:
 
     def has_args(self, args: tuple[Symbol, ...]) -> bool:
         return set(self._args_names) == set(args)
+
+    def __iter__(self) -> Iterable:
+        yield from zip(self.args_names, self.args_types)
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.name}:{self.type}("
+            f"{' '.join(f'{k}:{v}' for k, v in zip(self.args_names, self.args_types))})"
+        )
 
 
 class BaseFnCheck:

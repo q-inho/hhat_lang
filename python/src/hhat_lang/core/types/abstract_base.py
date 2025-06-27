@@ -22,6 +22,9 @@ class Size:
     def size(self) -> int:
         return self._size
 
+    def __repr__(self) -> str:
+        return f"Size({self.size})"
+
 
 class QSize:
     """
@@ -51,6 +54,9 @@ class QSize:
     def add_max(self, max_num: int) -> None:
         if isinstance(max_num, int) and self._max is None:
             self._max = max_num
+
+    def __repr__(self) -> str:
+        return f"QSize(min={self.min}{f'|max={self.max}' if self.max else ''})"
 
 
 class BaseTypeDataStructure(ABC):

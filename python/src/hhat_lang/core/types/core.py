@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import OrderedDict
 from typing import Any
 
 from hhat_lang.core.data.core import CompositeSymbol, Symbol, WorkingData
@@ -169,6 +168,10 @@ class StructDS(BaseTypeDataStructure):
             return variable
 
         return variable  # type: ignore [return-value]
+
+    def __repr__(self) -> str:
+        members = "{" + " ".join(f"{k}:{v}" for k, v in self._type_container.items()) + "}"
+        return f"{self.name}<struct>{members}"
 
 
 class UnionDS(BaseTypeDataStructure):
