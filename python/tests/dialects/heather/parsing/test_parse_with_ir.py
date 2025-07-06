@@ -18,18 +18,22 @@ THIS = Path(__file__).parent
 
 def ex_main04(files: tuple[Path, ...]) -> None:
     with open(files[0], "a") as f:
-        f.write("type space {x:i64 y:u64 z:i64}")
+        f.write(
+            "type space {x:i64 y:u64 z:i64}\n"
+            "type surface:u64\n"
+            "type volume:u64\n"
+        )
 
     with open(files[1], "a") as f:
-        f.write("type form {vol:u64}")
+        f.write("type form {vol:u64}\n")
 
 
 def ex_main05(files: tuple[Path, ...]) -> None:
     with open(files[0], "a") as f:
-        f.write("type line {x:i32}")
+        f.write("type point:i64\ntype line {x:i32}\ntype surface:u64\n")
 
     with open(files[1], "a") as f:
-        f.write("type plane {x:i32 y:i32}")
+        f.write("type plane {x:i32 y:i32}\n")
 
     with open(files[2], "a") as f:
         f.write("type normal {dx:i32 dy:i32 dz:i32}")
@@ -40,8 +44,9 @@ def ex_main05(files: tuple[Path, ...]) -> None:
     with open(files[4], "a") as f:
         f.write(
             # floor()
-            "fn floor (x:f64) i64 {xi:i64 = x*i64 "
-            "::if(and(ltz(x) ne(x xi*f64)):sub(xi 1) true:xi)"
+            "fn floor (x:f64) i64 {\n"
+            "  xi:i64 = x*i64\n"
+            "  ::if(and(ltz(x) ne(x xi*f64)):sub(xi 1) true:xi)\n"
             "}\n"
             # mod-2pi()
             "fn mod-2pi (theta:f64) f64 {\n"
@@ -119,6 +124,7 @@ def test_parse_type_ir(helper_fn: Callable, file_name: str, files: tuple[str, ..
         parser = parse_grammar()
 
         try:
+            print(f"[!] code:\n{code}\n")
             parse_tree = parser.parse(code)
             parsed_code = visit_parse_tree(parse_tree, ParserIRVisitor(project_root))
 
@@ -129,4 +135,3 @@ def test_parse_type_ir(helper_fn: Callable, file_name: str, files: tuple[str, ..
 
     finally:
         shutil.rmtree(project_root)
-        pass

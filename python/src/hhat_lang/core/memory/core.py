@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import uuid
 from abc import ABC, abstractmethod
-from collections import deque
+from collections import deque, OrderedDict
 from queue import LifoQueue
+from typing import Any, Hashable
 from uuid import UUID
 
 from hhat_lang.core.code.ir import BlockIR
@@ -11,7 +13,7 @@ from hhat_lang.core.data.core import (
     CompositeMixData,
     CoreLiteral,
     Symbol,
-    WorkingData,
+    WorkingData, CompositeWorkingData,
 )
 from hhat_lang.core.data.fn_def import BaseFnKey, BaseFnCheck
 from hhat_lang.core.data.variable import BaseDataContainer
@@ -228,9 +230,13 @@ class Stack(BaseStack):
         self._data = LifoQueue()
 
     def push(self, data: MemoryDataTypes) -> None:
+        """Push ``data`` into stack as its new last item"""
+
         self._data.put(data)
 
     def pop(self) -> MemoryDataTypes:
+        """Pop last item from stack"""
+
         return self._data.get()
 
     def peek(self) -> MemoryDataTypes:
@@ -271,11 +277,116 @@ class Heap(BaseHeap):
         self._data[key] = value
         return None
 
-    def get(self, key: Symbol) -> BaseDataContainer | WorkingData | HeapInvalidKeyError:
-        if not (var_data := self._data.get(key, False)):
+    def get(
+        self,
+        key: Symbol
+    ) -> BaseDataContainer | WorkingData | CompositeWorkingData | HeapInvalidKeyError:
+        """
+        Given a key, returns its data which can be a variable container (variable content),
+        a working data (symbol, literal) or composite working data.
+        """
+
+        if not (var_data := self._data.get(key, None)):
             return HeapInvalidKeyError(key=key)
 
         return var_data  # type: ignore [return-value]
+
+    def free(self, key: Symbol) -> HeapInvalidKeyError | None:
+        """
+        To free a given key from the heap. It must be called every time the heap goes out of scope
+        """
+
+        if not self._data.pop(key, False):
+            return HeapInvalidKeyError(key=key)
+
+        return None
+
+    def __contains__(self, item: Symbol) -> bool:
+        return item in self._data
+
+
+class ScopeValue:
+    """Holds a value for scopes"""
+
+    _value: int
+
+    def __init__(self, obj: Hashable, *, counter: int):
+        """
+       Hold a value for scope.
+
+        Args:
+            obj: object must be hashable
+            counter: from the interpreter counter, to keep track of scope nesting
+        """
+
+        self._value = hash(hash(obj) + counter)
+
+    @property
+    def value(self) -> int:
+        return self._value
+
+    def __hash__(self) -> int:
+        return self._value
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, ScopeValue):
+            return self._value == other._value
+
+        if isinstance(other, int):
+            return self._value == other
+
+        return False
+
+    def __repr__(self) -> str:
+        return f"S#{self._value}"
+
+
+class Scope:
+    """Defines a scope for stack and heap memory allocation"""
+
+    _stack: OrderedDict[ScopeValue, Stack]
+    _heap: dict[ScopeValue, Heap]
+
+    def __init__(self):
+        self._stack = OrderedDict()
+        self._heap = dict()
+
+    @property
+    def stack(self) -> OrderedDict[ScopeValue, Stack]:
+        return self._stack
+
+    @property
+    def heap(self) -> dict[ScopeValue, Heap]:
+        return self._heap
+
+    def new(self, scope: ScopeValue) -> Any:
+        """Define a new scope"""
+        if isinstance(scope, ScopeValue):
+            self._stack[scope] = Stack()
+            self._heap[scope] = Heap()
+
+        else:
+            # TODO: maybe create a error handler for it?
+            raise ValueError(f"value scope must be ScopeValue, got {type(scope)}")
+
+    def free(self, scope: ScopeValue, to_return: bool = False) -> Any:
+        """
+        Free scope data, i.e. stack and heap memory. Must be called every time
+        the scope is finished.
+        """
+
+        # if the scope is a function that is returning some value, the last value from stack
+        # will be popped out to be consumed by another scope
+        if to_return:
+            # for now, trying to place item into the last stack scope; if that works, keep as is
+            cur_stack_item = self._stack[scope].pop()
+            last_scope, last_stack = self._stack.popitem()
+            last_stack.push(cur_stack_item)
+            self._stack[last_scope] = last_stack
+            return None
+
+        self._stack[scope].pop()
+        return None
 
 
 class SymbolTable:

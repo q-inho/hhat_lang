@@ -1,6 +1,6 @@
-program                     = imports* (type_file*) / (fns* main?) EOF
+program                     = imports* ((fns* main?) / (type_file*)) EOF
 
-imports                     = ( 'use' '(' (typeimport / fnimport)+ ')' )*
+imports                     = 'use' '(' (typeimport / fnimport)+ ')'
 typeimport                  = 'type' ':' ( single_import / many_import )
 fnimport                    = 'fn' ':' ( single_import / many_import )
 single_import               = composite_id_with_closure / id
@@ -50,14 +50,12 @@ modifier                    = '<' ( valonly+ / callargs+ ) '>'
 trait_id                    = simple_id '#' id
 id                          = ( composite_id / simple_id ) modifier?
 
-literal                     = null / bool / str / int / float / imag / complex / q__bool / q__int
+literal                     = float / null / bool / str / int / q__bool / q__int
 null                        = 'null'
 bool                        = 'true' / 'false'
 str                         = r'"([^"]*)"'
 int                         = r'-?([1-9]\d*|0)'
-float                       = r'0(\.\d+)?|[1-9]\d*(\.\d+)?'
-imag                        = (r'0(\.\d+)?|[1-9]\d*(\.\d+)?j') / (r'-?([1-9]\d*|0)j')
-complex                     = '[' ( int / float ) imag ']'
+float                       = r'-?\d+\.\d+'
 q__bool                     = '@true' / '@false'
 q__int                      = r'-?\@([1-9]\d*|0)'
 

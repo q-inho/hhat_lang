@@ -200,6 +200,9 @@ class BaseDataContainer(ABC):
     def __iter__(self) -> Iterable:
         yield from self._data.items()
 
+    def __repr__(self) -> str:
+        return f"{self.name}"
+
     @abstractmethod
     def borrow(self, *args: Any, **kwargs: Any) -> None | ErrorHandler: ...
 

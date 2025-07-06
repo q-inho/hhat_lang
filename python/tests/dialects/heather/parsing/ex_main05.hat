@@ -6,4 +6,6 @@ use (
   fn:math.{sin floor}
 )
 
-main {}
+main {
+  print(sin(0.0))
+}

@@ -31,7 +31,7 @@ from hhat_lang.dialects.heather.code.simple_ir_builder.ir import (
     IRFlag,
     IRBaseInstr,
     IRTypes,
-    IRFns, IRProgram,
+    IRFns, IRProgram, IRCast, IRCall, IRArgs, IRArgValue,
 )
 from hhat_lang.dialects.heather.interpreter.classical.executor import Evaluator
 from hhat_lang.dialects.heather.parsing.utils import TypesDict, FnsDict, ImportDicts
@@ -72,7 +72,7 @@ def parse_file(file: str | Path, project_root: Path | str) -> IRProgram:
 
 class ParserIRVisitor(PTNodeVisitor):
     # TODO: use quantum device configuration number instead hardcoded one
-    MAX_NUM_INDEXES = 100
+    MAX_NUM_INDEXES = 26
 
     def __init__(self, project_root: Path):
         super().__init__()
@@ -81,7 +81,7 @@ class ParserIRVisitor(PTNodeVisitor):
         self._ev = Evaluator(self._mem)
 
     def visit_program(
-        self, _: NonTerminal, child: SemanticActionResults
+        self, node: NonTerminal, child: SemanticActionResults
     ) -> IRProgram:
 
         main = IR()
@@ -92,6 +92,7 @@ class ParserIRVisitor(PTNodeVisitor):
             match k:
                 case IRBlock():
                     # only main should be an IRBlock by now
+                    print(f"[!] program main:\n{k}")
                     main.add_block(k)
 
                 case ImportDicts():
@@ -132,7 +133,7 @@ class ParserIRVisitor(PTNodeVisitor):
         self, _: NonTerminal, child: SemanticActionResults
     ) -> tuple:
         # TODO: for now, consider members as built-in only
-        member_type = builtins_types[child[1][0].value]
+        member_type = builtins_types[child[1].value]
         member_name = child[0]
         return member_type, member_name
 
@@ -206,7 +207,21 @@ class ParserIRVisitor(PTNodeVisitor):
     def visit_body(
         self, _: NonTerminal, child: SemanticActionResults
     ) -> IR | WorkingData | CompositeWorkingData | IRBlock | IRBaseInstr | tuple:
-        pass
+        print(f"[!] body: {[k for k in child]}")
+
+        values = ()
+        for k in child:
+            match k:
+                case IRBaseInstr():
+                    print(f"IR instr: {k}")
+                    values += k,
+                case IRBlock():
+                    print(f"IR block: {k}")
+                    values += k,
+                case _:
+                    print(f"something else: {k}")
+        block = IRBlock(*values)
+        return block
 
     def visit_declare(
         self, _: NonTerminal, child: SemanticActionResults
@@ -230,38 +245,50 @@ class ParserIRVisitor(PTNodeVisitor):
 
     def visit_expr(
         self, _: NonTerminal, child: SemanticActionResults
-    ) -> IR | WorkingData | CompositeWorkingData | IRBlock | IRBaseInstr | tuple:
-        pass
+    ) -> WorkingData | CompositeWorkingData | IRBlock | IRBaseInstr | tuple:
+        # returning the child; there should exist only one element
+        print(f"[!] expr elem: {child}" if len(child) > 1 else "", end="")
+        return child[0]
 
     def visit_cast(
         self, _: NonTerminal, child: SemanticActionResults
-    ) -> IR | WorkingData | CompositeWorkingData | IRBlock | IRBaseInstr | tuple:
-        pass
+    ) -> IRBaseInstr:
+        print(f"[!] cast {child}")
+        return IRCast(cast_data=child[0], to_type=child[1])
 
     def visit_call(
         self, _: NonTerminal, child: SemanticActionResults
-    ) -> IR | WorkingData | CompositeWorkingData | IRBlock | IRBaseInstr | tuple:
-        pass
+    ) -> IRBaseInstr:
+        print(f"[!] call {child}")
+        if len(child) == 2:
+            return IRCall(caller=child[0], args=child[1])
+
+        # TODO: resolve this later
+        for k in child:
+            print(f"  -> call item: {k} ({type(k)}")
+        return child
 
     def visit_trait_id(
         self, _: NonTerminal, child: SemanticActionResults
     ) -> IR | WorkingData | CompositeWorkingData | IRBlock | IRBaseInstr | tuple:
-        pass
+        print(f"[!] trait id?")
+        return ()
 
     def visit_args(
         self, _: NonTerminal, child: SemanticActionResults
-    ) -> IR | WorkingData | CompositeWorkingData | IRBlock | IRBaseInstr | tuple:
-        pass
+    ) -> IRBaseInstr:
+        print(f"[!] args {child}")
+        return IRArgs(*child)
 
     def visit_callargs(
         self, _: NonTerminal, child: SemanticActionResults
-    ) -> IR | WorkingData | CompositeWorkingData | IRBlock | IRBaseInstr | tuple:
-        pass
+    ) -> IRBaseInstr:
+        return IRArgValue(arg_name=child[0], value=child[1])
 
     def visit_valonly(
         self, _: NonTerminal, child: SemanticActionResults
     ) -> IR | WorkingData | CompositeWorkingData | IRBlock | IRBaseInstr | tuple:
-        pass
+        return child[0]
 
     def visit_option(
         self, _: NonTerminal, child: SemanticActionResults
@@ -286,7 +313,8 @@ class ParserIRVisitor(PTNodeVisitor):
     def visit_id_composite_value(
         self, _: NonTerminal, child: SemanticActionResults
     ) -> IR | WorkingData | CompositeWorkingData | IRBlock | IRBaseInstr | tuple:
-        return child
+        # Id composite value should have only one value
+        return child[0]
 
     def visit_imports(
         self, _: NonTerminal, child: SemanticActionResults
@@ -344,14 +372,20 @@ class ParserIRVisitor(PTNodeVisitor):
     ) -> IR | WorkingData | CompositeWorkingData | IRBlock | IRBaseInstr | tuple:
         instrs = ()
         for k in child:
-            if isinstance(k, IRBaseInstr):
-                instrs += k,
-
-            elif isinstance(k, tuple):
-                instrs += k
-
-            elif isinstance(k, WorkingData):
-                raise ValueError(f"something went wrong on building 'main': {k}")
+            match k:
+                case IRBlock():
+                    print(f"  -> block {k}")
+                    instrs += k,
+                case IRBaseInstr():
+                    print(f"  => instr {k}")
+                    for p, q in k.block_refs.items():
+                        print(f"   -> ref: {p}={q}")
+                    instrs += k,
+                case tuple():
+                    print(f"  -> tuple {k}")
+                    instrs += k
+                case _:
+                    raise ValueError(f"unknown {k} ({type(k)})")
 
         block = IRBlock(*instrs)
         ir = IR()
@@ -424,12 +458,13 @@ class ParserIRVisitor(PTNodeVisitor):
     def visit_float(
         self, node: Terminal, _: None
     ) -> IR | WorkingData | CompositeWorkingData | IRBlock | IRBaseInstr | tuple:
-        return CoreLiteral(value=node.value, lit_type="@float")
+        print(f"[!] float {node}")
+        return CoreLiteral(value=node.value, lit_type="float")
 
     def visit_imag(
         self, node: Terminal, _: None
     ) -> IR | WorkingData | CompositeWorkingData | IRBlock | IRBaseInstr | tuple:
-        return CoreLiteral(value=node.value, lit_type="@imag")
+        return CoreLiteral(value=node.value, lit_type="imag")
 
     def visit_q__bool(
         self, node: Terminal, _: None

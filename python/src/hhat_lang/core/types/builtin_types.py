@@ -5,6 +5,7 @@ from hhat_lang.core.types import POINTER_SIZE
 from hhat_lang.core.types.abstract_base import QSize, Size
 from hhat_lang.core.types.builtin_base import BuiltinSingleDS
 
+
 #######################
 # BUILT-IN DATA TYPES #
 #######################
@@ -30,10 +31,23 @@ F64 = BuiltinSingleDS(Symbol("f64"), Size(64))
 # quantum  #
 # -------- #
 
-QBool = BuiltinSingleDS(Symbol("@bool"), Size(POINTER_SIZE), qsize=QSize(1))
-QU2 = BuiltinSingleDS(Symbol("@u2"), Size(POINTER_SIZE), qsize=QSize(2))
-QU3 = BuiltinSingleDS(Symbol("@u3"), Size(POINTER_SIZE), qsize=QSize(3))
-QU4 = BuiltinSingleDS(Symbol("@u4"), Size(POINTER_SIZE), qsize=QSize(4))
+QBool = BuiltinSingleDS(Symbol("@bool"), Size(POINTER_SIZE), qsize=QSize(1, 1))
+QU2 = BuiltinSingleDS(Symbol("@u2"), Size(POINTER_SIZE), qsize=QSize(2, 2))
+QU3 = BuiltinSingleDS(Symbol("@u3"), Size(POINTER_SIZE), qsize=QSize(3, 3))
+QU4 = BuiltinSingleDS(Symbol("@u4"), Size(POINTER_SIZE), qsize=QSize(4,4))
+QInt = BuiltinSingleDS(
+    Symbol("@int"),
+    Size(POINTER_SIZE),
+    qsize=QSize(
+        min_num=QU2.qsize.min,
+        max_num=QU4.qsize.max
+    )
+)
+"""
+``QInt`` (``@int``) represents a generic quantum integer, where the minimum qsize is the 
+minimum of quantum integer type (``@u2``) and the maximum is the maximum of the biggest 
+quantum integer available.
+"""
 
 
 # ---------------------------------- #
@@ -42,21 +56,34 @@ QU4 = BuiltinSingleDS(Symbol("@u4"), Size(POINTER_SIZE), qsize=QSize(4))
 
 builtins_types = {
     # classical
-    "int": Int,
-    "float": Float,
-    "bool": Bool,
-    "u16": U16,
-    "u32": U32,
-    "u64": U64,
-    "i16": I16,
-    "i32": I32,
-    "i64": I64,
-    "f32": F32,
-    "f64": F64,
+    Symbol("int"): Int,
+    Symbol("float"): Float,
+    Symbol("bool"): Bool,
+    Symbol("u16"): U16,
+    Symbol("u32"): U32,
+    Symbol("u64"): U64,
+    Symbol("i16"): I16,
+    Symbol("i32"): I32,
+    Symbol("i64"): I64,
+    Symbol("f32"): F32,
+    Symbol("f64"): F64,
 
     # quantum
-    "@bool": QBool,
-    "@u2": QU2,
-    "@u3": QU3,
-    "@u4": QU4,
+    Symbol("@bool"): QBool,
+    Symbol("@int"): QInt,
+    Symbol("@u2"): QU2,
+    Symbol("@u3"): QU3,
+    Symbol("@u4"): QU4,
 }
+"""a dictionary where keys are the available types as str and the values are their classes"""
+
+
+compatible_types = {
+    Symbol("int"): (
+        Symbol("u16"), Symbol("u32"), Symbol("u64"), Symbol("i16"), Symbol("i32"), Symbol("i64")
+    ),
+    Symbol("float"): (Symbol("f32"), Symbol("f64")),
+    Symbol("@int"): (Symbol("@u2"), Symbol("@u3"), Symbol("@u4"))
+}
+"""dictionary to establish the relation between generic types (``int``, ``float``, ``@int``)
+as their possible convertible types"""

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import struct
 from enum import Enum, auto
+from functools import lru_cache
 from typing import Any, Iterable
 
 ACCEPTABLE_VALUES: dict = {
@@ -183,11 +185,31 @@ class CoreLiteral(WorkingData):
         self._type = lit_type
         self._is_quantum = True if lit_type.startswith("@") else False
         self._suppress_type = False
-        self._bin_form = bin(int(value.strip("@")))[2:]
+
+    @lru_cache
+    def transform_bin(self) -> str:
+        value: str
+
+        try:
+            # works if integer
+            value = bin(int(self.value.strip("@")))[2:]
+
+        except ValueError:
+            try:
+                # works if float
+                value = "".join(
+                    f"{k:08b}" for k in struct.pack(">d", float(self.value.strip("@")))
+                )
+
+            except ValueError:
+                # works if string
+                value = "".join(f"{ord(s):08b}" for s in self.value)
+
+        return value
 
     @property
     def bin(self) -> str:
-        return self._bin_form
+        return self.transform_bin()
 
 
 class CompositeLiteral(CompositeWorkingData):

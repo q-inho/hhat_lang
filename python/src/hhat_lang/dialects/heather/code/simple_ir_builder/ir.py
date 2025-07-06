@@ -10,7 +10,7 @@ from copy import deepcopy
 from enum import Enum, auto
 from typing import Any, Iterable
 
-from hhat_lang.core.data.core import Symbol, WorkingData, CompositeSymbol
+from hhat_lang.core.data.core import Symbol, WorkingData, CompositeSymbol, CompositeWorkingData
 from hhat_lang.core.data.fn_def import BaseFnKey
 from hhat_lang.core.types.abstract_base import BaseTypeDataStructure
 
@@ -33,6 +33,7 @@ class IRFlag(Enum):
     DECLARE = auto()
     DECLARE_ASSIGN = auto()
     ARGS = auto()
+    ARG_VALUE = auto()
     OPTION = auto()
     COND = auto()
     MATCH = auto()
@@ -114,7 +115,7 @@ class IRBlock:
         for n, k in enumerate(self.instrs):
             content += f"\n      {'0' * (total_instrs - len(str(n)) + 1) + str(n+1)} {k}"
 
-        return f"      block:{content}\n"
+        return f"\n      block:{content}\n"
 
 
 ##############################
@@ -199,8 +200,22 @@ class IRBaseInstr(ABC):
 class IRArgs(IRBaseInstr):
     INSTR = IRFlag.ARGS
 
-    def __init__(self, *args: WorkingData | IRBlock | BlockRef):
+    def __init__(self, *args: WorkingData | IRBlock | BlockRef | IRArgValue):
         super().__init__(*args, name=IRFlag.ARGS)
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+class IRArgValue(IRBaseInstr):
+    INSTR = IRFlag.ARG_VALUE
+
+    def __init__(
+        self,
+        arg_name: Symbol,
+        value: WorkingData | CompositeWorkingData | IRBlock | BlockRef
+    ):
+        super().__init__(arg_name, value, name=IRFlag.ARG_VALUE)
 
     def __call__(self, *args, **kwargs):
         pass
@@ -399,24 +414,41 @@ class IR:
         if block.name not in self.code_block:
             self.add_ref(block.name, block)
 
-            # iterate over each instruction to check for new blocks
-            for k in block:
+            # # iterate over each instruction to check for new blocks
+            # for k in block:
+            #
+            #     match k:
+            #
+            #         # blocks will have the same check as above
+            #         case IRBlock():
+            #             if k.name not in self.code_block:
+            #                 self.add_ref(k.name, k)
+            #
+            #         # instructions will have a check on their block_refs
+            #         case IRBaseInstr():
+            #
+            #             # iterating over all the blocks in the instruction
+            #             for p, q in k.block_refs.items():
+            #
+            #                 if p not in self.code_block:
+            #                     self.add_ref(p, q)
+        self._recursive_retrieval(block)
 
-                match k:
+    def _recursive_retrieval(self, block: IRBlock | IRBaseInstr) -> None:
+        for k in block:
 
-                    # blocks will have the same check as above
-                    case IRBlock():
-                        if k.name not in self.code_block:
-                            self.add_ref(k.name, k)
+            match k:
+                case IRBlock():
+                    if k.name not in self.code_block:
+                        self.add_ref(k.name, k)
 
-                    # instructions will have a check on their block_refs
-                    case IRBaseInstr():
+                case IRBaseInstr():
+                    for p, q in k.block_refs.items():
 
-                        # iterating over all the blocks in the instruction
-                        for p, q in k.block_refs.items():
+                        if p not in self.code_block:
+                            self.add_ref(p, q)
 
-                            if p not in self.code_block:
-                                self.add_ref(p, q)
+                        self._recursive_retrieval(q)
 
     def __iter__(self) -> Iterable:
         yield from self.code_block.items()

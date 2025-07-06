@@ -86,6 +86,10 @@ class BaseTypeDataStructure(ABC):
         return self._name
 
     @property
+    def ds(self) -> SymbolOrdered:
+        return self._type_container
+
+    @property
     def is_quantum(self) -> bool:
         return self._is_quantum
 

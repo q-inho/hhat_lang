@@ -6,6 +6,15 @@ import os
 from pathlib import Path
 from typing import Any
 
+from hhat_lang.toolchain.project import (
+    SOURCE_FOLDER_NAME,
+    SOURCE_TYPES_PATH,
+    DOCS_TYPES_PATH,
+    DOCS_FOLDER_NAME,
+    TESTS_FOLDER_NAME,
+    MAIN_FILE_NAME,
+    MAIN_DOC_FILE_NAME,
+)
 from hhat_lang.toolchain.project.utils import str_to_path
 
 
@@ -35,17 +44,17 @@ def _create_template_folders(project_name: Path) -> Any:
     os.mkdir(project_name)
 
     # create project template structure
-    os.mkdir(project_name / "src")
-    os.mkdir(project_name / "src" / "hat_types")
-    os.mkdir(project_name / "src" / "hat_docs")
-    os.mkdir(project_name / "src" / "hat_docs" / "hat_types")
-    os.mkdir(project_name / "tests")
+    os.mkdir(project_name / SOURCE_FOLDER_NAME)
+    os.mkdir(project_name / SOURCE_TYPES_PATH)
+    os.mkdir(project_name / DOCS_FOLDER_NAME)
+    os.mkdir(project_name / DOCS_TYPES_PATH)
+    os.mkdir(project_name / TESTS_FOLDER_NAME)
     # os.mkdir(project_name / "proofs")  # TODO: once proofs are incorporated, include them
 
 
 def _create_template_files(project_name: Path) -> Any:
-    open(project_name / "src" / "main.hat", "w").close()
-    open(project_name / "src" / "hat_docs" / "main.hat.md", "w").close()
+    open(project_name / SOURCE_FOLDER_NAME / MAIN_FILE_NAME, "w").close()
+    open(project_name / DOCS_FOLDER_NAME / MAIN_DOC_FILE_NAME, "w").close()
 
 
 ###################
@@ -56,7 +65,7 @@ def _create_template_files(project_name: Path) -> Any:
 def create_new_file(project_name: str | Path, file_name: str | Path) -> Any:
     project_name = str_to_path(project_name)
     file_name = str_to_path(file_name)
-    doc_file = file_name.parent / "hat_docs" / (file_name.name + ".md")
+    doc_file = file_name.parent.parent / DOCS_FOLDER_NAME / (file_name.name + ".md")
 
     open(project_name / file_name, "w").close()
     open(project_name / doc_file, "w").close()
@@ -67,11 +76,11 @@ def create_new_type_file(project_name: str | Path, file_name: str | Path) -> Any
     file_name = file_name + ".hat"
     doc_file = file_name + ".md"
 
-    file_path = project_name / "src" / "hat_types" / file_name
+    file_path = project_name / SOURCE_TYPES_PATH / file_name
     if file_path.parent != Path("."):
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    doc_path = project_name / "src" / "hat_docs" / "hat_types" / doc_file
+    doc_path = project_name / DOCS_TYPES_PATH / doc_file
     if doc_path.parent != Path("."):
         doc_path.parent.mkdir(parents=True, exist_ok=True)
 
