@@ -119,10 +119,10 @@ class BaseTypeDataStructure(ABC):
     @abstractmethod
     def __call__(
         self,
-        *args: Any,
-        var_name: str,
+        *,
+        var_name: Symbol,
         flag: VariableKind,
-        **kwargs: dict[WorkingData, WorkingData | VariableTemplate],
+        **kwargs: Any,
     ) -> BaseDataContainer | ErrorHandler: ...
 
     def __contains__(self, item: Any) -> bool:

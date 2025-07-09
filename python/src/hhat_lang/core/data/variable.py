@@ -108,7 +108,7 @@ class BaseDataContainer(ABC):
 
         return False
 
-    def _check_assign_ds_vals(
+    def _check_and_assign_ds_vals(
         self,
         data: Any,
         attr_type: Symbol,
@@ -127,7 +127,7 @@ class BaseDataContainer(ABC):
             False if there is no attribute type. Otherwise, true.
         """
 
-        if data.type == attr_type:
+        if data.type == self._ds[attr_type]:
             # is quantum or array data structure
             if data.is_quantum or self._check_array_prop(data):
                 if attr_type in self._ds:
@@ -148,7 +148,7 @@ class BaseDataContainer(ABC):
 
         return False
 
-    def _check_assign_ds_args_vals(
+    def _check_and_assign_ds_args_vals(
         self,
         key: Symbol,
         value: Any,
@@ -328,12 +328,12 @@ class ImmutableVariable(BaseDataContainer):
         if not self._assigned:
             if len(args) == len(self._ds):
                 for k, d in zip(args, self._ds):
-                    if not self._check_assign_ds_vals(k, d):
+                    if not self._check_and_assign_ds_vals(k, d):
                         return ContainerVarError(self.name)
 
             elif len(kwargs) == len(self._ds):
                 for k, v in kwargs.items():
-                    if not self._check_assign_ds_args_vals(Symbol(k), v):
+                    if not self._check_and_assign_ds_args_vals(Symbol(k), v):
                         return ContainerVarError(self.name)
 
             self._assigned = True
@@ -382,12 +382,18 @@ class MutableVariable(BaseDataContainer):
     ) -> None | ErrorHandler:
         if len(args) == len(self._ds):
             for k, d in zip(args, self._ds):
-                if not self._check_assign_ds_vals(k, d):
+                if not self._check_and_assign_ds_vals(k, d):
                     return ContainerVarError(self.name)
 
         elif len(kwargs) == len(self._ds):
             for k, v in kwargs.items():
-                if not self._check_assign_ds_args_vals(Symbol(k), v):
+                k = Symbol("@" + k[3:]) if k.startswith("q__") else Symbol(k)
+
+                if k in self._ds:
+                    if not self._check_and_assign_ds_args_vals(k, v):
+                        return ContainerVarError(self.name)
+
+                else:
                     return ContainerVarError(self.name)
 
         self._assigned = True
@@ -437,12 +443,14 @@ class AppendableVariable(BaseDataContainer):
     ) -> None | ErrorHandler:
         if len(args) == len(self._ds):
             for k, d in zip(args, self._ds):
-                if not self._check_assign_ds_vals(k, d):
+                if not self._check_and_assign_ds_vals(k, d):
                     return ContainerVarError(self.name)
 
         elif len(kwargs) == len(self._ds):
             for k, v in kwargs.items():
-                if not self._check_assign_ds_args_vals(Symbol(k), v):
+                k = Symbol("@" + k[3:]) if k.startswith("q__") else Symbol(k)
+
+                if not self._check_and_assign_ds_args_vals(k, v):
                     return ContainerVarError(self.name)
 
         self._assigned = True

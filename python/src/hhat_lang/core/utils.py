@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import uuid
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from collections.abc import Mapping
-from typing import Any, Iterator
+from typing import Any, Iterator, Hashable
+from uuid import NAMESPACE_OID
 
 from hhat_lang.core.data.core import CompositeSymbol, Symbol, WorkingData
 from hhat_lang.core.error_handlers.errors import ErrorHandler
+
+
+def gen_uuid(obj: Hashable) -> int:
+    return int(uuid.uuid5(NAMESPACE_OID, f"{obj}").hex, 16)
 
 
 class SymbolOrdered(Mapping):

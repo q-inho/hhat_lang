@@ -5,15 +5,19 @@ from abc import ABC, abstractmethod
 from collections import deque, OrderedDict
 from queue import LifoQueue
 from typing import Any, Hashable
-from uuid import UUID
+from uuid import UUID, NAMESPACE_OID
+
+from mypyc.ir.ops import NAMESPACE_TYPE
 
 from hhat_lang.core.code.ir import BlockIR
+from hhat_lang.core.code.new_ir import BaseIRBlock
+from hhat_lang.core.utils import gen_uuid
 from hhat_lang.core.data.core import (
     CompositeLiteral,
     CompositeMixData,
     CoreLiteral,
     Symbol,
-    WorkingData, CompositeWorkingData,
+    WorkingData, CompositeWorkingData, CompositeSymbol,
 )
 from hhat_lang.core.data.fn_def import BaseFnKey, BaseFnCheck
 from hhat_lang.core.data.variable import BaseDataContainer
@@ -62,8 +66,8 @@ class IndexManager:
     _num_allocated: int
     _available: deque
     _allocated: deque
-    _resources: dict[WorkingData, int]
-    _in_use_by: dict[WorkingData, deque]
+    _resources: dict[WorkingData | CompositeWorkingData, int]
+    _in_use_by: dict[WorkingData | CompositeWorkingData, deque]
 
     def __init__(self, max_num_index: int):
         self._max_num_index = max_num_index
@@ -89,7 +93,7 @@ class IndexManager:
         return self._allocated
 
     @property
-    def resources(self) -> dict[WorkingData, int]:
+    def resources(self) -> dict[WorkingData | CompositeWorkingData, int]:
         """
         Dictionary containing the variable(s)/literal(s) and
         the index amount requested.
@@ -98,7 +102,7 @@ class IndexManager:
         return self._resources
 
     @property
-    def in_use_by(self) -> dict[WorkingData, deque]:
+    def in_use_by(self) -> dict[WorkingData | CompositeWorkingData, deque]:
         """
         Dictionary containing the variable(s)/literal(s) with
         the deque of indexes provided.
@@ -106,7 +110,10 @@ class IndexManager:
 
         return self._in_use_by
 
-    def __getitem__(self, item: WorkingData) -> deque | IndexInvalidVarError:
+    def __getitem__(
+        self,
+        item: WorkingData | CompositeWorkingData
+    ) -> deque | IndexInvalidVarError:
         """Return the deque of indexes from a quantum data."""
 
         if res := self._in_use_by.get(item, False):
@@ -114,7 +121,7 @@ class IndexManager:
 
         return IndexInvalidVarError(var_name=item)
 
-    def __contains__(self, item: WorkingData) -> bool:
+    def __contains__(self, item: WorkingData | CompositeWorkingData) -> bool:
         """Checks whether there is item in the IndexManager."""
 
         return item in self._in_use_by
@@ -136,14 +143,18 @@ class IndexManager:
 
         return IndexAllocationError(requested_idxs=num_idxs, max_idxs=available)
 
-    def _alloc_var(self, var_name: WorkingData, idxs_deque: deque) -> None:
+    def _alloc_var(
+        self,
+        var_name: WorkingData | CompositeWorkingData,
+        idxs_deque: deque
+    ) -> None:
         self._in_use_by[var_name] = idxs_deque
         self._allocated.extend(idxs_deque)
 
-    def _has_var(self, var_name: WorkingData) -> bool:
+    def _has_var(self, var_name: WorkingData | CompositeWorkingData) -> bool:
         return var_name in self._resources
 
-    def _free_var(self, var_name: WorkingData) -> deque:
+    def _free_var(self, var_name: WorkingData | CompositeWorkingData) -> deque:
         """
         Free variable's indexes and allocated deque with those indexes.
         """
@@ -155,7 +166,11 @@ class IndexManager:
 
         return idxs
 
-    def add(self, var_name: WorkingData, num_idxs: int) -> None | ErrorHandler:
+    def add(
+        self,
+        var_name: WorkingData | CompositeWorkingData,
+        num_idxs: int
+    ) -> None | ErrorHandler:
         """
         Add a variable/literal with a given number of indexes required for it.
         The amount will be used upon request through the `request` method.
@@ -172,7 +187,10 @@ class IndexManager:
             requested_idxs=num_idxs, max_idxs=self._num_allocated
         )
 
-    def request(self, var_name: WorkingData) -> deque | ErrorHandler:
+    def request(
+        self,
+        var_name: WorkingData | CompositeWorkingData
+    ) -> deque | ErrorHandler:
         """
         Request a number of indexes given by the `resources` property for
         a variable `var_name`.
@@ -194,7 +212,7 @@ class IndexManager:
 
         return IndexUnknownError()
 
-    def free(self, var_name: WorkingData) -> None:
+    def free(self, var_name: WorkingData | CompositeWorkingData) -> None:
         """
         Free indexes from a given variable `var_name`.
         """
@@ -248,8 +266,6 @@ class Stack(BaseStack):
 
 
 class BaseHeap(ABC):
-    # TODO: modify if to account for scope heap
-
     _data: dict[Symbol, BaseDataContainer]
 
     @abstractmethod
@@ -265,8 +281,6 @@ class BaseHeap(ABC):
 
 
 class Heap(BaseHeap):
-    # TODO: it must be used for scopes
-
     def __init__(self):
         self._data = dict()
 
@@ -309,6 +323,7 @@ class ScopeValue:
     """Holds a value for scopes"""
 
     _value: int
+    _counter: int
 
     def __init__(self, obj: Hashable, *, counter: int):
         """
@@ -319,11 +334,16 @@ class ScopeValue:
             counter: from the interpreter counter, to keep track of scope nesting
         """
 
-        self._value = hash(hash(obj) + counter)
+        self._value = gen_uuid(gen_uuid(obj) + counter)
+        self._counter = counter
 
     @property
     def value(self) -> int:
         return self._value
+
+    @property
+    def counter(self) -> int:
+        return self._counter
 
     def __hash__(self) -> int:
         return self._value
@@ -369,99 +389,209 @@ class Scope:
             # TODO: maybe create a error handler for it?
             raise ValueError(f"value scope must be ScopeValue, got {type(scope)}")
 
-    def free(self, scope: ScopeValue, to_return: bool = False) -> Any:
+    def last(self) -> ScopeValue:
+        """
+        Get the last ``ScopeValue``, relying upon that ``Stack`` object,
+        having an ``OrderedDict`` object, will always return the key-value
+        pairs in insertion order.
+        """
+
+        return tuple(self._stack.keys())[-1]
+
+    def free(self, scope: ScopeValue, to_return: bool = False) -> ScopeValue | None:
         """
         Free scope data, i.e. stack and heap memory. Must be called every time
         the scope is finished.
+
+        Returns:
+            The ``ScopeValue`` object where the return data was placed,
+            if ``to_return`` is set to ``True``. ``False`` by default. Otherwise,
+            ``None`` is returned
         """
 
         # if the scope is a function that is returning some value, the last value from stack
         # will be popped out to be consumed by another scope
         if to_return:
-            # for now, trying to place item into the last stack scope; if that works, keep as is
             cur_stack_item = self._stack[scope].pop()
             last_scope, last_stack = self._stack.popitem()
             last_stack.push(cur_stack_item)
             self._stack[last_scope] = last_stack
-            return None
+            return last_scope
 
         self._stack[scope].pop()
         return None
 
 
+class TypeTable:
+    table: dict[Symbol | CompositeSymbol, BaseTypeDataStructure]
+
+    def __init__(self):
+        self.table = dict()
+
+    def add(self, name: Symbol | CompositeSymbol, data: BaseTypeDataStructure) -> None:
+        if (
+            isinstance(name, Symbol | CompositeSymbol)
+            and isinstance(data, BaseTypeDataStructure)
+        ):
+            if name not in self.table:
+                self.table[name] = data
+
+        else:
+            raise ValueError(
+                f"type {name} must be symbol/composite symbol and its data must be "
+                f"known type structure"
+            )
+
+    def get(
+        self,
+        name: Symbol | CompositeSymbol,
+        default: Any | None = None
+    ) -> BaseTypeDataStructure | Any | None:
+        return self.table.get(name, default)
+
+    def __contains__(self, item: Symbol | CompositeSymbol) -> bool:
+        return item in self.table
+
+    def __len__(self) -> int:
+        return len(self.table)
+
+    def __repr__(self) -> str:
+        content = "\n      ".join(f"{v}" for v in self.table.values())
+        return f"\n  types:\n      {content}\n"
+
+
+class FnTable:
+    """
+        This class holds functions definitions as ``BaseFnKey`` for function
+        entry (function name, type and arguments) and its body (content).
+
+        Together with ``IRTypes`` and ``IR`` it provides the base for an IR object
+        picturing the full code.
+        """
+
+    table: dict[BaseFnKey | BaseFnCheck, BaseIRBlock]
+
+    def __init__(self):
+        self.table = dict()
+
+    def add(self, fn_entry: BaseFnKey, data: BaseIRBlock) -> None:
+        if (
+            fn_entry not in self.table
+            and isinstance(fn_entry, BaseFnKey)
+            and isinstance(data, BaseIRBlock)
+        ):
+            self.table[fn_entry] = data
+
+    def get(self, fn_entry: BaseFnCheck, default: Any | None = None) -> BaseIRBlock:
+        return self.table.get(fn_entry, default)
+
+    def __len__(self) -> int:
+        return len(self.table)
+
+    def __repr__(self) -> str:
+        content = "\n      ".join(f"{k}:\n          {v}" for k, v in self.table.items())
+        return f"\n  fns:\n      {content}\n"
+
+
 class SymbolTable:
     """To store types and functions"""
 
-    _types: dict[WorkingData, BaseTypeDataStructure]
-    _fns: dict[BaseFnKey, BlockIR]
+    _types: TypeTable
+    _fns: FnTable
 
     def __init__(self):
-        self._types = dict()
-        self._fns = dict()
+        self._types = TypeTable()
+        self._fns = FnTable()
 
-    def add_type(self, item: WorkingData, type_def: BaseTypeDataStructure) -> None:
-        if item not in self._types and isinstance(type_def, BaseTypeDataStructure):
-            self._types[item] = type_def
+    @property
+    def type(self) -> TypeTable:
+        return self._types
 
-    def add_fn(self, fn: BaseFnKey, fn_def: BlockIR) -> None:
-        if fn not in self._fns:  # and isinstance(fn_def, BlockIR):
-            self._fns[fn] = fn_def
-
-    def get_type(self, item: WorkingData) -> BaseTypeDataStructure | SymbolTableInvalidKeyError:
-        if item in self._types:
-            return self._types[item]
-
-        return SymbolTableInvalidKeyError(item, SymbolTableInvalidKeyError.Type())
-
-    def get_fn(self, item: BaseFnCheck) -> BlockIR | SymbolTableInvalidKeyError:
-        if item in self._fns:
-            return self._fns[item]
-
-        return SymbolTableInvalidKeyError(item, SymbolTableInvalidKeyError.Fn())
+    @property
+    def fn(self) -> FnTable:
+        return self._fns
 
 
 ########################
 # MEMORY MANAGER CLASS #
 ########################
 
-
 class BaseMemoryManager(ABC):
     _idx: IndexManager
-    _stack: BaseStack
-    _heap: BaseHeap
-    _pid: PIDManager
     _symbol: SymbolTable
+    _scope: Scope
+    _cur_scope: ScopeValue
 
     @property
     def idx(self) -> IndexManager:
         return self._idx
 
     @property
-    def stack(self) -> BaseStack:
-        return self._stack
-
-    @property
-    def heap(self) -> BaseHeap:
-        return self._heap
+    def scope(self) -> Scope:
+        return self._scope
 
     @property
     def symbol(self) -> SymbolTable:
         return self._symbol
 
     @property
-    def pid(self) -> PIDManager:
-        return self._pid
+    def cur_scope(self) -> ScopeValue:
+        return self._cur_scope
 
 
 class MemoryManager(BaseMemoryManager):
     """Manages the stack, heap, symbol table, pid, and index."""
 
-    def __init__(self, max_num_index: int):
-        self._stack = Stack()
-        self._heap = Heap()
-        self._symbol = SymbolTable()
-        self._pid = PIDManager()
-        self._idx = IndexManager(max_num_index)
+    def __init__(self, *, ir_block: BaseIRBlock, max_num_index: int, depth_counter: int):
+        if (
+            isinstance(ir_block, BaseIRBlock)
+            and isinstance(max_num_index, int)
+            and isinstance(depth_counter, int)
+        ):
+            self._scope = Scope()
+            self._cur_scope = ScopeValue(obj=ir_block, counter=depth_counter)
+            self._scope.new(self._cur_scope)
+            self._symbol = SymbolTable()
+            self._idx = IndexManager(max_num_index)
+
+        else:
+            raise ValueError(
+                "memory manager needs IR block object, max number of indexes and"
+                " interpreter code depth counter"
+            )
+
+    def new_scope(self, ir_block: BaseIRBlock, depth_counter: int) -> ScopeValue:
+        scope_value = ScopeValue(ir_block, counter=depth_counter)
+        self._scope.new(scope_value)
+        self._cur_scope = scope_value
+        return scope_value
+
+    def free_scope(self, scope: ScopeValue, to_return: bool = False) -> None:
+        self._scope.free(scope=scope, to_return=to_return)
+
+        if scope == self._cur_scope:
+            if len(self._scope.stack) > 0:
+                self._cur_scope = self._scope.last()
+
+            else:
+                # no more scope, the interpreter should have reached the end of the code
+                # TODO: double check later what to do in this case
+                pass
+
+    def free_last_scope(self, to_return: bool = False) -> None:
+        if len(self._scope.stack) > 0:
+            last_scope = self._scope.last()
+            self._scope.free(scope=last_scope, to_return=to_return)
+
+            if len(self._scope.stack) > 0:
+                self._cur_scope = self._scope.last()
+
+            else:
+                # TODO: what to do next
+                pass
+
+        else:
+            raise ValueError("trying to free last scope, but no more scope is left; mind is empty")
 
 
 MemoryDataTypes = (

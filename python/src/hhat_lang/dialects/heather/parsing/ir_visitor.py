@@ -9,7 +9,6 @@ from typing import Iterable
 from arpeggio import visit_parse_tree, NonTerminal, PTNodeVisitor, SemanticActionResults, Terminal
 from arpeggio.cleanpeg import ParserPEG
 
-from hhat_lang.core.code.ast import AST
 from hhat_lang.core.types.abstract_base import Size, BaseTypeDataStructure, QSize
 from hhat_lang.core.types.builtin_types import builtins_types
 from hhat_lang.core.types.core import SingleDS, StructDS
@@ -25,14 +24,24 @@ from hhat_lang.core.data.core import (
 )
 from hhat_lang.core.imports import TypeImporter
 from hhat_lang.core.memory.core import MemoryManager
-from hhat_lang.dialects.heather.code.simple_ir_builder.ir import (
+from hhat_lang.dialects.heather.code.simple_ir_builder.new_ir import (
     IR,
     IRBlock,
-    IRFlag,
-    IRBaseInstr,
+    IRInstr,
+    CallInstr,
+    ArgsBlock,
+    ArgsValuesBlock,
     IRTypes,
-    IRFns, IRProgram, IRCast, IRCall, IRArgs, IRArgValue,
+    IRFlag,
 )
+# from hhat_lang.dialects.heather.code.simple_ir_builder.ir import (
+#     IR,
+#     IRBlock,
+#     IRFlag,
+#     IRBaseInstr,
+#     IRTypes,
+#     IRFns, IRProgram, IRCast, IRCall, IRArgs, IRArgValue,
+# )
 from hhat_lang.dialects.heather.interpreter.classical.executor import Evaluator
 from hhat_lang.dialects.heather.parsing.utils import TypesDict, FnsDict, ImportDicts
 

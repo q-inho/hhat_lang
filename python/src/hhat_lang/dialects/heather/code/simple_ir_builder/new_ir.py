@@ -1,9 +1,15 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from enum import Enum, auto
+from abc import abstractmethod
+from enum import auto
 from typing import Any, Iterable, cast
 
+from hhat_lang.core.code.new_ir import (
+    BaseIRInstr,
+    BaseIRFlag,
+    BaseIRBlockFlag,
+    BaseIRBlock,
+)
 from hhat_lang.core.data.core import (
     Symbol,
     CompositeSymbol,
@@ -12,11 +18,17 @@ from hhat_lang.core.data.core import (
     CoreLiteral,
     CompositeLiteral,
 )
-from hhat_lang.core.data.fn_def import BaseFnKey
+from hhat_lang.core.data.fn_def import BaseFnKey, BaseFnCheck
 from hhat_lang.core.data.utils import VariableKind
-from hhat_lang.core.data.variable import VariableTemplate, BaseDataContainer
+from hhat_lang.core.data.variable import BaseDataContainer
 from hhat_lang.core.error_handlers.errors import HeapInvalidKeyError
-from hhat_lang.core.memory.core import Heap
+from hhat_lang.core.memory.core import (
+    Heap,
+    Stack,
+    MemoryManager,
+    TypeTable,
+    FnTable, ScopeValue,
+)
 from hhat_lang.core.types.abstract_base import BaseTypeDataStructure
 from hhat_lang.core.types.builtin_types import builtins_types, compatible_types
 
@@ -25,7 +37,7 @@ from hhat_lang.core.types.builtin_types import builtins_types, compatible_types
 # IR INSTRUCTIONS CLASSES #
 ###########################
 
-class IRFlag(Enum):
+class IRFlag(BaseIRFlag):
     """
     Used to identify the ``IRBaseInstr`` child class purpose. Ex: a ``CallInstr``
     class is defined with its name as ``IRFlag.CALL``.
@@ -47,7 +59,7 @@ class IRFlag(Enum):
     RETURN = auto()
 
 
-class IRInstr(ABC):
+class IRInstr(BaseIRInstr):
     """
     Base class for IR instructions. Custom IR instructions names must adhere to
     IRFlag enum attributes. For example::
@@ -80,23 +92,31 @@ class IRInstr(ABC):
                 f" args as {type(args)}. Check for correct types."
             )
 
-    @property
-    def name(self) -> IRFlag:
-        return self._name
-
     @abstractmethod
-    def resolve(self, *args: Any, **kwargs: Any) -> Any:
+    def resolve(self, mem: MemoryManager, **kwargs: Any) -> Any:
         """
         To resolve pending type imports to ``IRTypes`` and function imports to ``IRFns``,
         type checks on built-in types or custom types at ``IRTypes`` or var checks in the
         ``Heap`` memory, and so on.
         """
 
-    def __iter__(self) -> Iterable:
-        yield from self.args
-
     def __repr__(self) -> str:
         return f"{self.name}({', '.join(str(k) for k in self.args)})"
+
+
+class CastInstr(IRInstr):
+    def __init__(
+        self,
+        arg: WorkingData | CompositeWorkingData | IRInstr
+    ):
+        if isinstance(arg, WorkingData | CompositeWorkingData | IRInstr):
+            super().__init__(arg, name=IRFlag.CAST)
+
+        else:
+            raise ValueError(f"argument for cast operation cannot be {type(arg)}")
+
+    def resolve(self, mem: MemoryManager, **kwargs: Any) -> None:
+        pass
 
 
 class CallInstr(IRInstr):
@@ -127,8 +147,20 @@ class CallInstr(IRInstr):
 
         super().__init__(name, *instr_args, name=flag)
 
-    def resolve(self):
-        pass
+    def resolve(self, mem: MemoryManager, **_: Any) -> None:
+        caller: Symbol | CompositeSymbol = cast(Symbol | CompositeSymbol, self.args[0])
+        args: tuple = self.args[1:]
+        num_args: int = len(args)
+        mem.scope.stack[mem.cur_scope].push(args)
+
+        _handle_call_args(mem)
+
+        _handle_call_instr(
+            caller=caller,
+            number_args=num_args,
+            mem=mem,
+            flag=self.name
+        )
 
 
 class DeclareInstr(IRInstr):
@@ -142,10 +174,9 @@ class DeclareInstr(IRInstr):
                 f" or composite symbol, got {type(var_type)}"
             )
 
-    def resolve(self, *, heap_table: Heap, types_table: IRTypes) -> Any:
+    def resolve(self, mem: MemoryManager, **_: Any) -> None:
         var: Symbol = cast(Symbol, self.args[0])
-        variable = _get_declare_variable(var=var, heap=heap_table, types_table=types_table)
-        heap_table.set(key=var, value=variable)
+        _declare_variable(var=var, mem=mem)
 
 
 class AssignInstr(IRInstr):
@@ -162,22 +193,22 @@ class AssignInstr(IRInstr):
                 f"value must be working data or composite working data, got {type(value)}"
             )
 
-    def resolve(self, *, heap_table: Heap, types_table: IRTypes) -> Any:
+    def resolve(self, mem: MemoryManager, **_: Any) -> None:
         var: Symbol = cast(Symbol, self.args[0])
-        # retrieve variable from heap
-        variable = heap_table.get(var)
-        value = self.args[1]
+        variable = mem.scope.heap[mem.cur_scope].get(var)
+        mem.scope.stack[mem.cur_scope].push(self.args[1])
 
-        # resolve value to check and assign the correct type
-        new_args = _get_assign_datatype(
-            var_type=variable.type,
-            value=value,
-            heap=heap_table,
-            types_table=types_table
-        )
-        # set new arguments
-        self.args = (self.args[0], *new_args)
-        _assign_variable(*new_args, variable=variable)
+        # # resolve value to check and assign the correct type
+        # new_args = _get_assign_datatype(
+        #     var_type=variable.type,
+        #     value=value,
+        #     heap_table=heap_table,
+        #     types_table=types_table
+        # )
+        # # set new arguments
+        # self.args = (self.args[0], *new_args)
+
+        _assign_variable(variable=variable, mem=mem)
 
 
 class DeclareAssignInstr(IRInstr):
@@ -201,30 +232,19 @@ class DeclareAssignInstr(IRInstr):
                 f"value must be working data or composite working data, got {type(value)}"
             )
 
-    def resolve(self, *, heap_table: Heap, types_table: IRTypes) -> Any:
+    def resolve(self, mem: MemoryManager, **_: Any) -> None:
         var: Symbol = cast(Symbol, self.args[0])
-        variable = _get_declare_variable(var=var, heap=heap_table, types_table=types_table)
-        heap_table.set(key=var, value=variable)
-
-        value = self.args[1]
-
-        # resolve value to check and assign the correct type
-        new_args = _get_assign_datatype(
-            var_type=variable.type,
-            value=value,
-            heap=heap_table,
-            types_table=types_table
-        )
-        # set new arguments
-        self.args = (self.args[0], *new_args)
-        _assign_variable(*new_args, variable=variable)
+        _declare_variable(var=var, mem=mem)
+        variable: BaseDataContainer = mem.scope.heap[mem.cur_scope].get(var)
+        mem.scope.stack[mem.cur_scope].push(self.args[2])
+        _assign_variable(variable=variable, mem=mem)
 
 
 ####################
 # IR BLOCK CLASSES #
 ####################
 
-class IRBlockFlag(Enum):
+class IRBlockFlag(BaseIRBlockFlag):
     """Define all valid IR block flags for IR blocks"""
 
     BODY = auto()
@@ -233,20 +253,12 @@ class IRBlockFlag(Enum):
     OPTION = auto()
 
 
-class IRBlock(ABC):
+class IRBlock(BaseIRBlock):
     """
     IR blocks
     """
 
     _name: IRBlockFlag
-    args: tuple
-
-    @property
-    def name(self) -> IRBlockFlag:
-        return self._name
-
-    def __iter__(self) -> Iterable:
-        yield from self.args
 
     def __repr__(self) -> str:
         return "\n".join(str(k) for k in self.args)
@@ -267,6 +279,7 @@ class BodyBlock(IRBlock):
 
 class ArgsBlock(IRBlock):
     _name: IRBlockFlag.ARGS
+    args: tuple[IRBlock | IRInstr, ...] | tuple
 
     def __init__(self, *args: IRInstr):
         if all(isinstance(k, IRBlock | IRInstr) for k in args):
@@ -280,6 +293,7 @@ class ArgsBlock(IRBlock):
 
 class ArgsValuesBlock(IRBlock):
     _name: IRBlockFlag.ARGS_VALUES
+    args: tuple[Symbol, WorkingData | CompositeWorkingData | IRBlock | IRInstr] | tuple
 
     def __init__(
         self,
@@ -301,6 +315,7 @@ class ArgsValuesBlock(IRBlock):
 
 class OptionBlock(IRBlock):
     _name: IRBlockFlag.OPTION
+    args: tuple[WorkingData | CompositeWorkingData | IRBlock | IRInstr, IRBlock | IRInstr] | tuple
 
     def __init__(
         self,
@@ -321,121 +336,132 @@ class OptionBlock(IRBlock):
 # IR CLASSES #
 ##############
 
-class IRTypes:
-    """
-    This class holds types definitions as ``BaseTypeDataStructure`` objects.
+# class IRTypes:
+#     """
+#     This class holds types definitions as ``BaseTypeDataStructure`` objects.
+#
+#     Together with ``IRFns`` and ``IR`` it provides the base for an IR object
+#     picturing the full code.
+#     """
+#
+#     table: dict[Symbol | CompositeSymbol, BaseTypeDataStructure]
+#
+#     def __init__(self):
+#         self.table = dict()
+#
+#     def add(self, name: Symbol | CompositeSymbol, data: BaseTypeDataStructure) -> None:
+#         if (
+#             isinstance(name, Symbol | CompositeSymbol)
+#             and isinstance(data, BaseTypeDataStructure)
+#         ):
+#             if name not in self.table:
+#                 self.table[name] = data
+#
+#         else:
+#             raise ValueError(
+#                 f"type {name} must be symbol/composite symbol and its data must be "
+#                 f"known type structure"
+#             )
+#
+#     def get(
+#         self,
+#         name: Symbol | CompositeSymbol,
+#         default: Any | None = None
+#     ) -> BaseTypeDataStructure | Any | None:
+#         return self.table.get(name, default)
+#
+#     def __contains__(self, item: Symbol | CompositeSymbol) -> bool:
+#         return item in self.table
+#
+#     def __len__(self) -> int:
+#         return len(self.table)
+#
+#     def __repr__(self) -> str:
+#         content = "\n      ".join(f"{v}" for v in self.table.values())
+#         return f"\n  types:\n      {content}\n"
+#
+#
+# class IRFns:
+#     """
+#     This class holds functions definitions as ``BaseFnKey`` for function
+#     entry (function name, type and arguments) and its body (content).
+#
+#     Together with ``IRTypes`` and ``IR`` it provides the base for an IR object
+#     picturing the full code.
+#     """
+#
+#     table: dict[BaseFnKey | BaseFnCheck, IRBlock]
+#
+#     def __init__(self):
+#         self.table = dict()
+#
+#     def add(self, fn_entry: BaseFnKey, data: IRBlock) -> None:
+#         if (
+#             fn_entry not in self.table
+#             and isinstance(fn_entry, BaseFnKey)
+#             and isinstance(data, IRBlock)
+#         ):
+#             self.table[fn_entry] = data
+#
+#     def get(self, fn_entry: BaseFnCheck, default: Any | None = None) -> IRBlock:
+#         return self.table.get(fn_entry, default)
+#
+#     def __len__(self) -> int:
+#         return len(self.table)
+#
+#     def __repr__(self) -> str:
+#         content = "\n      ".join(f"{k}:\n          {v}" for k, v in self.table.items())
+#         return f"\n  fns:\n      {content}\n"
 
-    Together with ``IRFns`` and ``IR`` it provides the base for an IR object
-    picturing the full code.
-    """
 
-    table: dict[Symbol | CompositeSymbol, BaseTypeDataStructure]
-
-    def __init__(self):
-        self.table = dict()
-
-    def add(self, name: Symbol | CompositeSymbol, data: BaseTypeDataStructure) -> None:
-        if (
-            isinstance(name, Symbol | CompositeSymbol)
-            and isinstance(data, BaseTypeDataStructure)
-        ):
-            if name not in self.table:
-                self.table[name] = data
-
-        else:
-            raise ValueError(
-                f"type {name} must be symbol/composite symbol and its data must be "
-                f"known type structure"
-            )
-
-    def get(
-        self,
-        name: Symbol | CompositeSymbol,
-        default: Any | None = None
-    ) -> BaseTypeDataStructure | Any | None:
-        return self.table.get(name, default)
-
-    def __contains__(self, item: Symbol | CompositeSymbol) -> bool:
-        return item in self.table
-
-    def __len__(self) -> int:
-        return len(self.table)
-
-    def __repr__(self) -> str:
-        content = "\n      ".join(f"{v}" for v in self.table.values())
-        return f"\n  types:\n      {content}\n"
-
-
-class IRFns:
-    """
-    This class holds functions definitions as ``BaseFnKey`` for function
-    entry (function name, type and arguments) and its body (content).
-
-    Together with ``IRTypes`` and ``IR`` it provides the base for an IR object
-    picturing the full code.
-    """
-
-    table: dict[BaseFnKey, IRBlock]
-
-    def __init__(self):
-        self.table = dict()
-
-    def add(self, fn_entry: BaseFnKey, data: IRBlock) -> None:
-        if (
-            fn_entry not in self.table
-            and isinstance(fn_entry, BaseFnKey)
-            and isinstance(data, IRBlock)
-        ):
-            self.table[fn_entry] = data
-
-    def __len__(self) -> int:
-        return len(self.table)
-
-    def __repr__(self) -> str:
-        content = "\n      ".join(f"{k}:\n          {v}" for k, v in self.table.items())
-        return f"\n  fns:\n      {content}\n"
-
-
-class IR:
-    """Hold all the IR content: IR blocks, IR types and IR functions"""
-
-    main: IRBlock | None
-    types: IRTypes | None
-    fns: IRFns | None
-
-    def __init__(
-        self,
-        *,
-        main: IRBlock | None = None,
-        types: IRTypes | None = None,
-        fns: IRFns | None = None
-    ):
-        if (
-            isinstance(main, IRBlock)
-            or main is None
-            and isinstance(types, IRTypes)
-            or types is None
-            and isinstance(fns, IRFns)
-            or fns is None
-        ):
-            self.main = main
-            self.types = types
-            self.fns = fns
-
-    def __repr__(self) -> str:
-        return f"\n[ir/start]{self.types}{self.fns}{self.main}[ir/end]\n"
+# class IR:
+#     """Hold all the IR content: IR blocks, IR types and IR functions"""
+#
+#     main: IRBlock | None
+#     types: IRTypes | None
+#     fns: IRFns | None
+#
+#     def __init__(
+#         self,
+#         *,
+#         main: IRBlock | None = None,
+#         types: IRTypes | None = None,
+#         fns: IRFns | None = None
+#     ):
+#         if (
+#             isinstance(main, IRBlock)
+#             or main is None
+#             and isinstance(types, IRTypes)
+#             or types is None
+#             and isinstance(fns, IRFns)
+#             or fns is None
+#         ):
+#             self.main = main
+#             self.types = types
+#             self.fns = fns
+#
+#     def __repr__(self) -> str:
+#         return f"\n[ir/start]{self.types}{self.fns}{self.main}[ir/end]\n"
 
 
 ##################
 # MISC FUNCTIONS #
 ##################
 
-def _get_declare_variable(
+def _declare_variable(
     var: Symbol,
-    heap: Heap,
-    types_table: IRTypes
-) -> BaseDataContainer:
-    if var in heap:
+    mem: MemoryManager
+) -> None:
+    """
+    Convenient function for resolving variable declaration during the interpreter execution
+    and store it on the heap memory from the current scope.
+
+    Args:
+        var: the actual variable; must be a ``Symbol`` object
+        mem: ``MemoryManager`` object
+    """
+
+    if var in mem.scope.heap[mem.cur_scope]:
         raise ValueError(f"{var} already in heap; cannot re-declare variable")
 
     vt: str | tuple[str, ...] = var.type
@@ -451,7 +477,7 @@ def _get_declare_variable(
         case _:
             raise ValueError(f"var type {vt} is not valid ({type(vt)})")
 
-    var_type = types_table.get(type_symbol, None) or builtins_types.get(type_symbol, None)
+    var_type = mem.symbol.type.get(type_symbol, None) or builtins_types.get(type_symbol, None)
 
     match var_type:
         case None:
@@ -460,17 +486,15 @@ def _get_declare_variable(
             )
 
         case BaseTypeDataStructure():
-            variable = VariableTemplate(
+            variable = var_type(
                 var_name=var,
-                type_name=type_symbol,
-                type_ds=var_type.ds,
                 # TODO: use the modifier to define variable flag and define a default
                 flag=VariableKind.MUTABLE
             )
 
             match variable:
                 case BaseDataContainer():
-                    return variable
+                    mem.scope.heap[mem.cur_scope].set(key=var, value=variable)
 
                 case _:
                     raise ValueError(f"{variable}")
@@ -484,12 +508,38 @@ def _get_declare_variable(
 def _get_assign_datatype(
     var_type: Symbol | CompositeSymbol,
     value: WorkingData | CompositeWorkingData | IRInstr | IRBlock,
-    heap: Heap,
-    types_table: IRTypes,
-) -> Symbol | CoreLiteral | IRInstr | IRBlock:
+    mem: MemoryManager,
+) -> Symbol | CoreLiteral | CoreLiteral | CompositeLiteral | BaseDataContainer:
+    """
+    Convenient function to: (1) check whether the data being assigned to the variable has
+    the correct type, and to (2) resolve any instruction and block.
+
+    For instance, ``int`` data type can be converted to any of the valid integer types,
+    such as ``u64``, ``i64``, so on. However, if the data provided is a ``float`` and the
+    variable is an integer (e.g. ``u64``), it cannot be converted implicitly, so an error
+    will be raised. 'Convertible' data types should be done so explicitly on code,
+    with ``*`` (cast) operation, ex::
+
+        var1:u32 = 4.0*u32
+        var2:f32 = 255*f32
+
+    Data should be prepared to be inserted into the variable container, so any caller or
+    casting should be resolved here.
+
+    Args:
+        var_type: ``CompositeSymbol`` (or ``Symbol``) object of the variable type
+        value: data name as ``WorkingData``, ``CompositeWorkingData``, ``IRInstr`` or
+            ``IRBlock`` object to be assigned to the variable
+        mem: ``MemoryManager`` object
+
+    Returns:
+        The data name with adjusted type (if possible) or raise an error, in case data
+         is not compatible
+    """
+
     match value:
         case Symbol():
-            res_var = heap.get(value)
+            res_var = mem.scope.heap[mem.cur_scope].get(value)
 
             match res_var:
                 case HeapInvalidKeyError():
@@ -512,7 +562,7 @@ def _get_assign_datatype(
                 dt_ds = builtins_types.get(data_type)
 
                 if dt_ds:
-                    types_table.add(data_type, dt_ds)
+                    mem.symbol.type.add(data_type, dt_ds)
 
                 else:
                     raise ValueError(f"invalid type {data_type}")
@@ -525,20 +575,34 @@ def _get_assign_datatype(
             )
 
         case IRInstr():
-            new_instrs = ()
+            new_args = ()
 
             for k in value:
-                new_instrs += _get_assign_datatype(var_type, k, heap, types_table),
+                new_args += _get_assign_datatype(
+                    var_type=var_type,
+                    value=k,
+                    mem=mem,
+                ),
 
-            return value.__class__(*new_instrs, name=value.name)
+            new_instr: IRInstr = value.__class__(*new_args, name=value.name)
+            new_instr.resolve(mem)
+
+            return mem.scope.stack[mem.cur_scope].pop()
 
         case BodyBlock() | ArgsBlock() | ArgsValuesBlock() | OptionBlock():
             new_blocks = ()
 
             for k in value:
-                new_blocks += _get_assign_datatype(var_type, k, heap, types_table),
+                new_blocks += _get_assign_datatype(
+                    var_type=var_type,
+                    value=k,
+                    mem=mem
+                ),
 
-            return value.__class__(*new_blocks)
+            new_instr: IRInstr = value.__class__(*new_blocks)
+            new_instr.resolve(mem=mem)
+
+            return mem.scope.stack[mem.cur_scope].pop()
 
         case _:
             raise NotImplementedError(
@@ -550,15 +614,136 @@ def _get_assign_datatype(
     )
 
 
-def _assign_variable(*args: Any, variable: BaseDataContainer, **arg_values: Any) -> None:
-    if len(args) > 0 and len(arg_values) == 0:
-        variable(*args)
+def _assign_variable(
+    *,
+    variable: BaseDataContainer,
+    mem: MemoryManager,
+    **arg_values: Any
+) -> None:
+    """
+    Convenient function to assign a value to a variable. It calls checks for any
+    data incompatibility and resolvers for any instructions or blocks to be yet
+    evaluated.
 
-    elif len(args) == 0 and len(arg_values) > 0:
-        variable(**arg_values)
+    Args:
+        variable: the variable container object
+        stack_table: stack memory object from the current scope
+        heap_table: heap memory object from the current scope
+        types_table: ``IRTypes`` types table object
+        **arg_values: Any extra argument used
+    """
+
+    args: WorkingData | CompositeWorkingData | IRInstr | IRBlock = mem.scope.stack[mem.cur_scope].pop()
+    new_args: tuple = _get_assign_datatype(var_type=variable.type, value=args, mem=mem),
+
+    if len(new_args) > 0 and len(arg_values) == 0:
+        variable.assign(*new_args)
+
+    elif len(new_args) == 0 and len(arg_values) > 0:
+        variable.assign(**arg_values)
 
     else:
         raise NotImplementedError(
             f"should not have arguments and argument-value together when "
             f"assigning variable {variable}"
         )
+
+
+def _handle_call_args(mem: MemoryManager) -> None:
+    """
+    Convenient function to resolve call arguments.
+
+    Args:
+        mem: ``MemoryManager`` object
+    """
+
+    args: tuple | IRBlock | IRInstr | WorkingData | CompositeWorkingData = mem.scope.stack[mem.cur_scope].pop()
+
+    match args:
+        case tuple() | IRBlock():
+            for k in args:
+                mem.scope.stack[mem.cur_scope].push(k)
+                _handle_call_args(mem)
+
+        case IRInstr():
+            args.resolve(mem)
+
+        case WorkingData() | CompositeWorkingData():
+            mem.scope.stack[mem.cur_scope].push(args)
+
+
+def _handle_call_instr(
+    caller: Symbol | CompositeSymbol,
+    number_args: int,
+    mem: MemoryManager,
+    flag: IRFlag
+) -> None:
+    """
+    Convenient function to handle call instruction and evaluated it.
+
+    Args:
+        caller: the caller name
+        number_args: number of arguments; needed to pop data out of the stack the
+            correct amount of times
+        mem: ``MemoryManager`` object
+        flag: ``IRFlag`` value
+    """
+
+    match flag:
+        case IRFlag.CALL:
+            args_types = ()
+            args = ()
+
+            for _ in range(number_args):
+                res = mem.scope.stack[mem.cur_scope].pop()
+                args += res,
+
+                if isinstance(res, CoreLiteral):
+                    args_types += res.type,
+
+                elif isinstance(res, Symbol):
+                    args_types += res
+
+            fn_entry = BaseFnCheck(
+                fn_name=caller,
+                args_types=args_types,
+            )
+            fn_block: IRBlock = cast(IRBlock, mem.symbol.fn.get(fn_entry, None))
+
+            if fn_block is None:
+                raise ValueError(f"function {caller} with arg type signature {args_types} not found")
+
+            # FIXME: depth_counter value needs to come from the interpreter global depth counter
+            fn_scope = mem.new_scope(fn_block, depth_counter=1)
+            _resolve_fn_block(fn_block, mem)
+            mem.free_last_scope(to_return=True)
+
+        case IRFlag.CALL_WITH_BODY:
+            pass
+
+        case IRFlag.CALL_WITH_OPTION:
+            pass
+    pass
+
+
+def _resolve_fn_block(
+    data: IRBlock | IRInstr,
+    mem: MemoryManager
+) -> None:
+    """
+    Convenient function to resolve function blocks. Whenever it's called from outside,
+    a new scope from ``MemoryManager`` must be created and freed after it finishes
+    execution and return to the outside scope.
+
+    Args:
+        data: IR block or IR instruction object
+        mem: ``MemoryManager`` object
+    """
+
+    match data:
+        case IRBlock():
+            for k in data:
+                _resolve_fn_block(k, mem)
+
+        case IRInstr():
+            data.resolve(mem)

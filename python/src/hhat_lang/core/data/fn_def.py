@@ -10,26 +10,21 @@ class BaseFnKey:
     Base class for functions definition on memory's SymbolTable.
     Provide functions a signature.
 
-    Given a function:
+    Given a function::
 
-    ```
-    fn sum (a:u64 b:u64) u64 { ::add(a b) }
-    ```
+        fn sum (a:u64 b:u64) u64 { ::add(a b) }
 
-    The function key object is as follows:
+    The function key object is as follows::
 
-    ```
-    BaseFnKey(
-        name=Symbol("sum"),
-        type=Symbol("u64"),
-        args_names=(Symbol("a"), Symbol("b"),),
-        args_types=(Symbol("u64"), Symbol("u64"),)
-    )
-    ```
+        BaseFnKey(
+            name=Symbol("sum"),
+            type=Symbol("u64"),
+            args_names=(Symbol("a"), Symbol("b"),),
+            args_types=(Symbol("u64"), Symbol("u64"),)
+        )
 
-    When trying to retrieve the function data, use `BaseFnCheck`
+    When trying to retrieve the function data, use ``BaseFnCheck``
     parent instance instead:
-
 
     """
 
@@ -81,7 +76,7 @@ class BaseFnKey:
         return self._args_names
 
     def __hash__(self) -> int:
-        return hash((self._name, self._type, self._args_types))
+        return hash((self._name, self._args_types))
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, BaseFnKey | BaseFnCheck):
@@ -112,38 +107,33 @@ class BaseFnCheck:
     """
 
     _name: Symbol
-    _type: Symbol | CompositeSymbol
     _args_types: tuple | tuple[Symbol | CompositeSymbol, ...]
     _args_names: tuple | tuple[Symbol, ...]
 
     def __init__(
         self,
         fn_name: Symbol,
-        fn_type: Symbol | CompositeSymbol,
         args_types: tuple | tuple[Symbol | CompositeSymbol, ...],
     ):
 
         # checks types correctness
         assert (
             isinstance(fn_name, Symbol)
-            and isinstance(fn_type, Symbol | CompositeSymbol)
             and all(isinstance(p, Symbol | CompositeSymbol) for p in args_types),
             f"Wrong types provided for function retrieval on SymbolTable:\n"
-            f"  name: {fn_name}\n  type: {fn_type}\n  args types: {args_types}\n",
+            f"  name: {fn_name}\n  args types: {args_types}\n",
         )
 
         self._name = fn_name
-        self._type = fn_type
         self._args_types = args_types
 
     def __hash__(self) -> int:
-        return hash((self._name, self._type, self._args_types))
+        return hash((self._name, self._args_types))
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, BaseFnKey | BaseFnCheck):
             return (
                 self._name == other._name
-                and self._type == other._type
                 and self._args_types == other._args_types
             )
 

@@ -20,7 +20,8 @@ def test_single_ds() -> None:
 
     user_type1 = SingleDS(name=Symbol("user_type1"))
     user_type1.add_member(U32)
-    var1 = user_type1(lit_108, var_name=Symbol("var1"))
+    var1 = user_type1(var_name=Symbol("var1"))
+    var1.assign(lit_108)
 
     assert var1.name == Symbol("var1")
     assert var1.type == Symbol("user_type1")
@@ -36,7 +37,8 @@ def test_single_ds_quantum() -> None:
 
     qtype1 = SingleDS(name=Symbol("@type1"))
     qtype1.add_member(QU3)
-    qvar1 = qtype1(lit_q2, var_name=Symbol("@var1"))
+    qvar1 = qtype1(var_name=Symbol("@var1"))
+    qvar1.assign(lit_q2)
 
     assert qvar1.name == Symbol("@var1")
     assert qvar1.type == Symbol("@type1")
@@ -59,7 +61,8 @@ def test_struct_ds() -> None:
 
     point = StructDS(name=Symbol("point"))
     point.add_member(U32, Symbol("x")).add_member(U32, Symbol("y"))
-    p = point(lit_25, lit_17, var_name=Symbol("p"))
+    p = point(var_name=Symbol("p"))
+    p.assign(x=lit_25, y=lit_17)
 
     assert p.name == Symbol("p")
     assert p.type == Symbol("point")
@@ -76,13 +79,24 @@ def test_struct_ds_quantum() -> None:
 
     qsample = StructDS(name=Symbol("@sample"))
     qsample.add_member(U32, Symbol("counts")).add_member(QU3, Symbol("@d"))
-    qvar = qsample(lit_8, lit_q2, var_name=Symbol("@var"))
+
+    qvar = qsample(var_name=Symbol("@var"))
+    qvar.assign(lit_8, lit_q2)
 
     assert qvar.name == Symbol("@var")
     assert qvar.type == Symbol("@sample")
     assert qvar.is_quantum is True
     assert qvar.data == OrderedDict({Symbol("counts"): lit_8, Symbol("@d"): [lit_q2]})
     assert qvar.get(Symbol("counts")) == lit_8 and qvar.get(Symbol("@d")) == [lit_q2]
+
+    qvar2 = qsample(var_name=Symbol("@var2"))
+    qvar2.assign(counts=lit_8, q__d=lit_q2)
+
+    assert qvar2.name == Symbol("@var2")
+    assert qvar2.type == Symbol("@sample")
+    assert qvar2.is_quantum is True
+    assert qvar2.data == OrderedDict({Symbol("counts"): lit_8, Symbol("@d"): [lit_q2]})
+    assert qvar2.get(Symbol("counts")) == lit_8 and qvar2.get(Symbol("@d")) == [lit_q2]
 
 
 def test_struct_ds_quantum_wrong() -> None:

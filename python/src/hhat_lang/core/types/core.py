@@ -54,29 +54,19 @@ class SingleDS(BaseTypeDataStructure):
 
     def __call__(
         self,
-        *args: Any,
+        *,
         var_name: Symbol,
         flag: VariableKind = VariableKind.IMMUTABLE,
-        **kwargs: dict[WorkingData, WorkingData | BaseDataContainer],
+        **_: Any,
     ) -> BaseDataContainer | ErrorHandler:
-        if len(args) == 1:
-            x = args[0]
-
-            if x.type == self._type_container[self.name]:
-                variable = VariableTemplate(
-                    var_name=var_name,
-                    type_name=self.name,
-                    type_ds=SymbolOrdered({Symbol(x.type): self._type_container}),
-                    flag=flag,
-                )
-
-                if isinstance(variable, BaseDataContainer):
-                    variable(*args)
-                    return variable
-
-                return variable  # type: ignore [return-value]
-
-        return TypeSingleError(self._name)
+        return VariableTemplate(
+            var_name=var_name,
+            type_name=self.name,
+            type_ds=SymbolOrdered({
+                next(iter(self._type_container.values())): self._type_container
+            }),
+            flag=flag,
+        )
 
 
 class ArrayDS(BaseTypeDataStructure):
@@ -133,41 +123,17 @@ class StructDS(BaseTypeDataStructure):
 
     def __call__(
         self,
-        *args: Any,
+        *,
         var_name: Symbol,
-        flag: VariableKind = VariableKind.IMMUTABLE,
-        **kwargs: dict[WorkingData, WorkingData | BaseDataContainer],
+        flag: VariableKind = VariableKind.MUTABLE,
+        **_: Any
     ) -> BaseDataContainer | ErrorHandler:
-        container: SymbolOrdered = SymbolOrdered()
-
-        if len(args) == len(self._type_container):
-            for k, (g, c) in zip(args, self._type_container.items()):
-                if k.type == c:
-                    container[g] = k
-
-                else:
-                    return TypeStructError(self._name)
-
-        if len(kwargs) == len(self._type_container):
-            for n, (k, v) in enumerate(kwargs.items()):
-                if k in self._type_container:
-                    container[k] = v
-
-                else:
-                    return TypeStructError(self._name)
-
-        variable = VariableTemplate(
+        return VariableTemplate(
             var_name=var_name,
             type_name=self._name,
             type_ds=self._type_container,
             flag=flag,
         )
-
-        if isinstance(variable, BaseDataContainer):
-            variable(**container)
-            return variable
-
-        return variable  # type: ignore [return-value]
 
     def __repr__(self) -> str:
         members = "{" + " ".join(f"{k}:{v}" for k, v in self._type_container.items()) + "}"
@@ -191,12 +157,17 @@ class UnionDS(BaseTypeDataStructure):
 
     def __call__(
         self,
-        *args: Any,
-        var_name: str,
-        flag: VariableKind = VariableKind.IMMUTABLE,
-        **kwargs: dict[WorkingData, WorkingData | BaseDataContainer],
+        *,
+        var_name: Symbol,
+        flag: VariableKind = VariableKind.MUTABLE,
+        **_: Any
     ) -> BaseDataContainer | ErrorHandler:
-        raise NotImplementedError()
+        return VariableTemplate(
+            var_name=var_name,
+            type_name=self._name,
+            type_ds=self._type_container,
+            flag=flag
+        )
 
 
 class EnumDS(BaseTypeDataStructure):
@@ -218,7 +189,12 @@ class EnumDS(BaseTypeDataStructure):
         self,
         *args: Any,
         var_name: str,
-        flag: VariableKind = VariableKind.IMMUTABLE,
+        flag: VariableKind = VariableKind.MUTABLE,
         **kwargs: dict[WorkingData, WorkingData | BaseDataContainer],
     ) -> BaseDataContainer | ErrorHandler:
-        raise NotImplementedError()
+        return VariableTemplate(
+            var_name=var_name,
+            type_name=self._name,
+            type_ds=self._type_container,
+            flag=flag
+        )

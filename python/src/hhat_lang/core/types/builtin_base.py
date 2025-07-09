@@ -68,28 +68,19 @@ class BuiltinSingleDS(BaseTypeDataStructure):
 
     def __call__(
         self,
-        *args: Any,
+        *,
         var_name: Symbol,
-        **kwargs: dict[WorkingData, WorkingData | VariableTemplate],
+        flag: VariableKind = VariableKind.MUTABLE,
+        **_: Any
     ) -> BaseDataContainer | ErrorHandler:
-        if len(args) == 1:
-            x = args[0]
-
-            if x.type == self._type_container[0]:
-                variable = VariableTemplate(
-                    var_name=var_name,
-                    type_name=self.name,
-                    type_ds=SymbolOrdered({x.type: self._type_container}),
-                    flag=VariableKind.MUTABLE,
-                )
-
-                if isinstance(variable, BaseDataContainer):
-                    variable(*args)
-                    return variable
-
-                return variable  # type: ignore [return-value]
-
-        return TypeSingleError(self._name)
+        return VariableTemplate(
+            var_name=var_name,
+            type_name=self.name,
+            type_ds=SymbolOrdered({
+                next(iter(self._type_container.values())): self._type_container
+            }),
+            flag=flag,
+        )
 
     def __contains__(self, item: Any) -> bool:
         raise NotImplementedError()
