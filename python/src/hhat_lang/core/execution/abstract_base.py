@@ -3,29 +3,69 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
-from hhat_lang.core.code.ir import BaseFnIR, TypeIR
 from hhat_lang.core.memory.core import MemoryManager
 
 
-class BaseEvaluator(ABC):
-    _mem: MemoryManager
-    _type_table: TypeIR
-    _fn_table: BaseFnIR
+class BaseInterpreter(ABC):
+    """
+    An abstract interpreter class. The interpreter class must hold basic interpreter
+    attributes and functionalities, such as parsing and evaluating code.
+
+    Each interpreter object holds information regarding available quantum devices specs,
+    quantum target backend and its quantum language as well as their specs, and the H-hat
+    dialect specs to parse the code and to evaluate it.
+    """
+
+    _depth_counter: int
+    """to count code depth, for memory and scope management; it must be >= 0"""
 
     @property
-    def mem(self) -> MemoryManager:
-        return self._mem
+    def depth_counter(self) -> int:
+        """
+        To count code depth, especially on recursive function calls.
 
-    @property
-    def type_table(self) -> TypeIR:
-        return self._type_table
+        Returns:
+            The current integer of the depth counter
+        """
 
-    @property
-    def fn_table(self) -> BaseFnIR:
-        return self._fn_table
+        return self._depth_counter
+
+    def inc_depth_counter(self) -> None:
+        self._depth_counter += 1
+
+    def dec_depth_counter(self) -> None:
+        self._depth_counter -= 1
+        if self._depth_counter < 0:
+            raise ValueError("interpreter depth counter is < 0")
 
     @abstractmethod
-    def run(self, code: Any, **kwargs: Any) -> Any:
+    def parse(self, *args: Any, code: str, **kwargs: Any) -> Any:
+        """
+        Parsing the source code to some intermediate representation,
+        e.g. AST, IR, etc.
+        """
+
+    @abstractmethod
+    def evaluate(self, *args: Any, **kwargs: Any) -> Any:
+        """
+        Evaluates the code using the evaluator instance defined by the
+        interpreter specs.
+        """
+
+    @abstractmethod
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """
+        Calling an interpreter should return an evaluator (that actually executes code)
+        """
+
+
+class BaseEvaluator(ABC):
+    """
+    An abstract evaluator class.
+    """
+
+    @abstractmethod
+    def run(self, *, code: Any, mem: MemoryManager, **kwargs: Any) -> Any:
         raise NotImplementedError()
 
     @abstractmethod
