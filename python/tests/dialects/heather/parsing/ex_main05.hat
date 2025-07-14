@@ -1,11 +1,14 @@
 use (
   type:[
-    geometry.{euclidian.{line plane} differential.normal}
+    geometry.{euclidian2.{line plane} differential2.normal}
     std.io.socket
   ]
   fn:math.{sin floor}
 )
 
 main {
+  l:line =.{x=41}
+  p:plane
+  p.{x=250 y=600}
   print(sin(0.0))
 }

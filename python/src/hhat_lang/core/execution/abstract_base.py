@@ -45,6 +45,8 @@ class BaseInterpreter(ABC):
         e.g. AST, IR, etc.
         """
 
+        raise NotImplementedError()
+
     @abstractmethod
     def evaluate(self, *args: Any, **kwargs: Any) -> Any:
         """
@@ -52,11 +54,7 @@ class BaseInterpreter(ABC):
         interpreter specs.
         """
 
-    @abstractmethod
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        """
-        Calling an interpreter should return an evaluator (that actually executes code)
-        """
+        raise NotImplementedError()
 
 
 class BaseEvaluator(ABC):
@@ -66,6 +64,17 @@ class BaseEvaluator(ABC):
 
     @abstractmethod
     def run(self, *, code: Any, mem: MemoryManager, **kwargs: Any) -> Any:
+        """To run only once, when calling the evaluator to execute the code."""
+
+        raise NotImplementedError()
+
+    @abstractmethod
+    def walk(self, code: Any, mem: MemoryManager, **kwargs: Any) -> Any:
+        """
+        To run recursively and evaluate the code. Should not be called directly be
+        the user, but rather through `run` and internal methods.
+        """
+
         raise NotImplementedError()
 
     @abstractmethod

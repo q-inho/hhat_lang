@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-import uuid
 from abc import ABC, abstractmethod
 from collections import deque, OrderedDict
 from queue import LifoQueue
 from typing import Any, Hashable
 from uuid import UUID, NAMESPACE_OID
 
-from mypyc.ir.ops import NAMESPACE_TYPE
-
-from hhat_lang.core.code.ir import BlockIR
 from hhat_lang.core.code.new_ir import BaseIRBlock
 from hhat_lang.core.utils import gen_uuid
 from hhat_lang.core.data.core import (
@@ -19,7 +15,7 @@ from hhat_lang.core.data.core import (
     Symbol,
     WorkingData, CompositeWorkingData, CompositeSymbol,
 )
-from hhat_lang.core.data.fn_def import BaseFnKey, BaseFnCheck
+from hhat_lang.core.data.fn_def import BaseFnKey, BaseFnCheck, FnDef
 from hhat_lang.core.data.variable import BaseDataContainer
 from hhat_lang.core.error_handlers.errors import (
     ErrorHandler,
@@ -469,27 +465,53 @@ class FnTable:
         picturing the full code.
         """
 
-    table: dict[BaseFnKey | BaseFnCheck, BaseIRBlock]
+    table: dict[Symbol | CompositeSymbol, dict[BaseFnKey | BaseFnCheck, FnDef]]
 
     def __init__(self):
         self.table = dict()
 
-    def add(self, fn_entry: BaseFnKey, data: BaseIRBlock) -> None:
-        if (
-            fn_entry not in self.table
-            and isinstance(fn_entry, BaseFnKey)
-            and isinstance(data, BaseIRBlock)
-        ):
-            self.table[fn_entry] = data
+    def add(self, fn_entry: BaseFnCheck, data: FnDef) -> None:
+        if isinstance(data, FnDef):
+            if isinstance(fn_entry, BaseFnCheck):
+                if fn_entry.name in self.table:
+                    self.table[fn_entry.name].update({fn_entry: data})
 
-    def get(self, fn_entry: BaseFnCheck, default: Any | None = None) -> BaseIRBlock:
-        return self.table.get(fn_entry, default)
+                else:
+                    self.table[fn_entry.name] = {fn_entry: data}
+
+            elif isinstance(fn_entry, BaseFnKey):
+                new_fn_entry = BaseFnCheck(fn_name=fn_entry.name, args_types=fn_entry.args_types)
+                if fn_entry.name in self.table:
+                    self.table[fn_entry.name].update({new_fn_entry: data})
+
+                else:
+                    self.table[fn_entry.name] = {new_fn_entry: data}
+
+            else:
+                raise ValueError(f"fn_entry is of wrong type ({type(fn_entry)})")
+
+    def get(
+        self,
+        fn_entry: Symbol | CompositeSymbol | BaseFnCheck,
+        default: Any | None = None
+    ) -> FnDef | dict[BaseFnCheck, FnDef] | None:
+        match fn_entry:
+            case Symbol() | CompositeSymbol():
+                return self.table.get(fn_entry, default)
+
+            case BaseFnCheck():
+                if fn_entry.name in self.table:
+                    return self.table[fn_entry.name].get(fn_entry, default)
+
+        raise ValueError(f"cannot retrieve fn {fn_entry}")
 
     def __len__(self) -> int:
-        return len(self.table)
+        return sum(len(k) for k in self.table.values())
 
     def __repr__(self) -> str:
-        content = "\n      ".join(f"{k}:\n          {v}" for k, v in self.table.items())
+        content = "\n      ".join(
+            f"{k}:\n         {v}" for h in self.table.values() for k, v in h.items()
+        )
         return f"\n  fns:\n      {content}\n"
 
 

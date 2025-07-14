@@ -20,26 +20,29 @@ typespace                   = 'typespace' ( trait_id / id ) '{' fns* '}'
 fns                         = 'fn' simple_id fnargs id? fn_body
 fnargs                      = '(' argtype* ')'
 argtype                     = simple_id ':' id_composite_value
-fn_body                     = '{' (declare / assign / declareassign / return / expr)* '}'
+fn_body                     = '{' ( return / declareassign / declareassign_ds / declare / assignargs / assign_ds / assign / expr )* '}'
 return                      = "::" expr
 id_composite_value          = ( '[' id ']' ) / id
 
 main                        = 'main' body
 
-body                        = '{' (declare / assign / declareassign / expr)* '}'
+body                        = '{' ( declareassign / declareassign_ds / declare / assignargs / assign_ds / assign / expr)* '}'
 expr                        = cast / callwithargsoptions / callwithbodyoptions / callwithbody / call / array / id / literal
 declare                     = simple_id modifier? ':' id
 assign                      = id '=' expr
+assign_ds                   = id '.' '{' assignargs+ '}'
 declareassign               = simple_id modifier? ':' id '=' expr
+declareassign_ds            = simple_id modifier? ':' id '=.' '{' assignargs+ '}'
 cast                        = ( call / literal / id ) '*' id
-call                        = (trait_id '.')? id '(' args* ')' modifier?
-args                        = callargs / call / valonly
+call                        = (trait_id '.')? id '(' args ')' modifier?
+args                        = ( callargs / cast / call / valonly )*
+assignargs                  = ( composite_id / simple_id ) '=' expr
 callargs                    = simple_id ':' valonly
-valonly                     = array / literal / id
-option                      = (( call / array / id ) ':' body)
-callwithbodyoptions         = id '(' args* ')' '{' option+ '}'
+valonly                     = array / id / literal
+option                      = (( call / array / id ) ':' ( body / expr ))
+callwithbodyoptions         = id '(' args ')' '{' option+ '}'
 callwithargsoptions         = id '(' option+ ')'
-callwithbody                = id '(' args* ')' body
+callwithbody                = id '(' args ')' body
 
 array                       = '[' ( literal / composite_id_with_closure / id )* ']'
 

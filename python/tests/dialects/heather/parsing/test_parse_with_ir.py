@@ -7,16 +7,18 @@ import shutil
 from pathlib import Path
 from typing import Callable
 
-from arpeggio import visit_parse_tree
-
-from hhat_lang.dialects.heather.parsing.ir_visitor import ParserIRVisitor
-from hhat_lang.dialects.heather.parsing.run import parse_grammar
-from hhat_lang.toolchain.project.new import create_new_project, create_new_type_file
+from hhat_lang.dialects.heather.parsing.ir_visitor import parse
+# from hhat_lang.dialects.heather.parsing.run import parse_grammar
+from hhat_lang.toolchain.project.new import (
+    create_new_project,
+    create_new_type_file,
+    create_new_file
+)
 
 THIS = Path(__file__).parent
 
 
-def ex_main04(files: tuple[Path, ...]) -> None:
+def types_ex_main04(files: tuple[Path, ...]) -> None:
     with open(files[0], "a") as f:
         f.write(
             "type space {x:i64 y:u64 z:i64}\n"
@@ -28,7 +30,11 @@ def ex_main04(files: tuple[Path, ...]) -> None:
         f.write("type form {vol:u64}\n")
 
 
-def ex_main05(files: tuple[Path, ...]) -> None:
+def fns_ex_main04(files: tuple[Path, ...]) -> None:
+    pass
+
+
+def types_ex_main05(files: tuple[Path, ...]) -> None:
     with open(files[0], "a") as f:
         f.write("type point:i64\ntype line {x:i32}\ntype surface:u64\n")
 
@@ -41,7 +47,9 @@ def ex_main05(files: tuple[Path, ...]) -> None:
     with open(files[3], "a") as f:
         f.write("type socket {raw:u32}")
 
-    with open(files[4], "a") as f:
+
+def fns_ex_main05(files: tuple[Path, ...]) -> None:
+    with open(files[0], "a") as f:
         f.write(
             # floor()
             "fn floor (x:f64) i64 {\n"
@@ -82,21 +90,31 @@ def ex_main05(files: tuple[Path, ...]) -> None:
 
 
 @pytest.mark.parametrize(
-    "helper_fn, file_name, files",
+    "type_fn, fn_fn, file_name, type_files, fn_files",
     [
         (
-            ex_main04,
+            types_ex_main04,
+            fns_ex_main04,
             "ex_main04.hat",
-            ("geometry/euclidian", "geometry/differential")
+            ("geometry/euclidian", "geometry/differential"),
+            ()
         ),
         (
-            ex_main05,
+            types_ex_main05,
+            fns_ex_main05,
             "ex_main05.hat",
-            ("geometry/euclidian", "geometry/euclidian", "geometry/differential", "std/io", "math")
+            ("geometry/euclidian2", "geometry/euclidian2", "geometry/differential2", "std/io"),
+            ("math",)
         ),
     ]
 )
-def test_parse_type_ir(helper_fn: Callable, file_name: str, files: tuple[str, ...]) -> None:
+def test_parse_type_ir(
+    type_fn: Callable,
+    fn_fn: Callable,
+    file_name: str,
+    type_files: tuple[str, ...],
+    fn_files: tuple[str, ...],
+) -> None:
     project_name = "parse-test"
     project_root = THIS / project_name
 
@@ -107,11 +125,19 @@ def test_parse_type_ir(helper_fn: Callable, file_name: str, files: tuple[str, ..
         if not Path(project_root).resolve().exists():
             create_new_project(project_root)
 
-        files_path = ()
-        for k in files:
-            files_path += create_new_type_file(project_name, k),
+        types_path = ()
 
-        helper_fn(files_path)
+        for k in type_files:
+            types_path += create_new_type_file(project_name, k),
+
+        type_fn(types_path)
+
+        fns_path = ()
+
+        for f in fn_files:
+            fns_path += create_new_file(project_name, f),
+
+        fn_fn(fns_path)
 
         shutil.copy(
             src=(THIS / file_name),
@@ -121,12 +147,13 @@ def test_parse_type_ir(helper_fn: Callable, file_name: str, files: tuple[str, ..
         shutil.move(project_main_file_cp, project_root / "src" / "main.hat")
 
         code = open(project_main_file.resolve(), "r").read()
-        parser = parse_grammar()
+        # parser = parse_grammar()
 
         try:
             print(f"[!] code:\n{code}\n")
-            parse_tree = parser.parse(code)
-            parsed_code = visit_parse_tree(parse_tree, ParserIRVisitor(project_root))
+            # parse_tree = parser.parse(code)
+            # parsed_code = visit_parse_tree(parse_tree, ParserIRVisitor(project_root))
+            parsed_code = parse(code, project_root)
 
             print(f"[!!] ir parsed: {parsed_code}")
 
@@ -134,4 +161,5 @@ def test_parse_type_ir(helper_fn: Callable, file_name: str, files: tuple[str, ..
             pass
 
     finally:
-        shutil.rmtree(project_root)
+        # shutil.rmtree(project_root)
+        pass

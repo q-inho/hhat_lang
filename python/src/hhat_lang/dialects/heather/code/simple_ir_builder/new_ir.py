@@ -2,14 +2,12 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from enum import auto
-from typing import Any, Iterable, cast
+from typing import Any, cast
 
 from hhat_lang.core.code.new_ir import (
-    BaseIRInstr,
-    BaseIRFlag,
-    BaseIRBlockFlag,
-    BaseIRBlock,
+    BaseIRBlock, BaseIRBlockFlag,
 )
+from hhat_lang.core.code.core import BaseIR, BaseIRFlag, BaseIRInstr
 from hhat_lang.core.data.core import (
     Symbol,
     CompositeSymbol,
@@ -18,16 +16,12 @@ from hhat_lang.core.data.core import (
     CoreLiteral,
     CompositeLiteral,
 )
-from hhat_lang.core.data.fn_def import BaseFnKey, BaseFnCheck
+from hhat_lang.core.data.fn_def import BaseFnCheck
 from hhat_lang.core.data.utils import VariableKind
 from hhat_lang.core.data.variable import BaseDataContainer
 from hhat_lang.core.error_handlers.errors import HeapInvalidKeyError
 from hhat_lang.core.memory.core import (
-    Heap,
-    Stack,
-    MemoryManager,
-    TypeTable,
-    FnTable, ScopeValue,
+    MemoryManager, TypeTable, FnTable,
 )
 from hhat_lang.core.types.abstract_base import BaseTypeDataStructure
 from hhat_lang.core.types.builtin_types import builtins_types, compatible_types
@@ -76,11 +70,11 @@ class IRInstr(BaseIRInstr):
 
     def __init__(
         self,
-        *args: IRBlock | WorkingData | CompositeWorkingData,
+        *args: IRBlock | IRInstr | WorkingData | CompositeWorkingData,
         name: IRFlag
     ):
         if (
-            all(isinstance(k, IRBlock | WorkingData | CompositeWorkingData) for k in args)
+            all(isinstance(k, IRBlock | IRInstr | WorkingData | CompositeWorkingData) for k in args)
             and isinstance(name, IRFlag)
         ):
             self._name = name
@@ -89,7 +83,7 @@ class IRInstr(BaseIRInstr):
         else:
             raise ValueError(
                 f"IR instr {self.__class__.__name__} must received name as {type(name)},"
-                f" args as {type(args)}. Check for correct types."
+                f" args as {[type(k) for k in args]}. Check for correct types."
             )
 
     @abstractmethod
@@ -107,23 +101,31 @@ class IRInstr(BaseIRInstr):
 class CastInstr(IRInstr):
     def __init__(
         self,
-        arg: WorkingData | CompositeWorkingData | IRInstr
+        data: WorkingData | CompositeWorkingData | IRInstr,
+        to_type: WorkingData | CompositeWorkingData | ModifierBlock
     ):
-        if isinstance(arg, WorkingData | CompositeWorkingData | IRInstr):
-            super().__init__(arg, name=IRFlag.CAST)
+        if (
+            isinstance(data, WorkingData | CompositeWorkingData | IRInstr)
+            and isinstance(to_type, WorkingData | CompositeWorkingData | ModifierBlock)
+        ):
+            super().__init__(data, to_type, name=IRFlag.CAST)
 
         else:
-            raise ValueError(f"argument for cast operation cannot be {type(arg)}")
+            raise ValueError(
+                f"cast operation cannot contain {data} ({type(data)}) "
+                f"and {to_type} ({type(to_type)})"
+            )
 
     def resolve(self, mem: MemoryManager, **kwargs: Any) -> None:
-        pass
+        raise NotImplementedError()
 
 
 class CallInstr(IRInstr):
     def __init__(
         self,
-        name: Symbol | CompositeSymbol,
-        args: ArgsBlock | ArgsValuesBlock | WorkingData | CompositeWorkingData,
+        name: Symbol | CompositeSymbol | ModifierBlock,
+        *,
+        args: ArgsBlock | ArgsValuesBlock | WorkingData | CompositeWorkingData | None = None,
         option: OptionBlock | None = None,
         body: BodyBlock | None = None,
     ):
@@ -132,7 +134,7 @@ class CallInstr(IRInstr):
             flag = IRFlag.CALL
 
         elif option is not None and body is None:
-            instr_args = (args, option)
+            instr_args = (option,)
             flag = IRFlag.CALL_WITH_OPTION
 
         elif option is None and body is not None:
@@ -148,7 +150,7 @@ class CallInstr(IRInstr):
         super().__init__(name, *instr_args, name=flag)
 
     def resolve(self, mem: MemoryManager, **_: Any) -> None:
-        caller: Symbol | CompositeSymbol = cast(Symbol | CompositeSymbol, self.args[0])
+        caller: Symbol | CompositeSymbol | ModifierBlock = cast(Symbol | CompositeSymbol | ModifierBlock, self.args[0])
         args: tuple = self.args[1:]
         num_args: int = len(args)
         mem.scope.stack[mem.cur_scope].push(args)
@@ -164,8 +166,11 @@ class CallInstr(IRInstr):
 
 
 class DeclareInstr(IRInstr):
-    def __init__(self, var: Symbol, var_type: Symbol | CompositeSymbol):
-        if isinstance(var, Symbol) and isinstance(var_type, Symbol | CompositeSymbol):
+    def __init__(self, var: Symbol | ModifierBlock, var_type: Symbol | CompositeSymbol | ModifierBlock):
+        if (
+            isinstance(var, Symbol | ModifierBlock)
+            and isinstance(var_type, Symbol | CompositeSymbol | ModifierBlock)
+        ):
             super().__init__(var, var_type, name=IRFlag.DECLARE)
 
         else:
@@ -175,14 +180,18 @@ class DeclareInstr(IRInstr):
             )
 
     def resolve(self, mem: MemoryManager, **_: Any) -> None:
-        var: Symbol = cast(Symbol, self.args[0])
+        var: Symbol | ModifierBlock = cast(Symbol | ModifierBlock, self.args[0])
         _declare_variable(var=var, mem=mem)
 
 
 class AssignInstr(IRInstr):
-    def __init__(self, var: Symbol, value: WorkingData | CompositeWorkingData | IRBlock):
+    def __init__(
+        self,
+        var: Symbol | ModifierBlock,
+        value: WorkingData | CompositeWorkingData | IRBlock
+    ):
         if (
-            isinstance(var, Symbol)
+            isinstance(var, Symbol | ModifierBlock)
             and isinstance(value, WorkingData | CompositeWorkingData | IRBlock)
         ):
             super().__init__(var, value, name=IRFlag.ASSIGN)
@@ -214,14 +223,14 @@ class AssignInstr(IRInstr):
 class DeclareAssignInstr(IRInstr):
     def __init__(
         self,
-        var: Symbol,
-        var_type: Symbol | CompositeSymbol,
-        value: WorkingData | CompositeWorkingData,
+        var: Symbol | ModifierBlock,
+        var_type: Symbol | CompositeSymbol | ModifierBlock,
+        value: WorkingData | CompositeWorkingData | IRInstr | IRBlock,
     ):
         if (
-            isinstance(var, Symbol)
-            and isinstance(var_type, Symbol | CompositeSymbol)
-            and isinstance(value, WorkingData | CompositeWorkingData)
+            isinstance(var, Symbol | ModifierBlock)
+            and isinstance(var_type, Symbol | CompositeSymbol | ModifierBlock)
+            and isinstance(value, WorkingData | CompositeWorkingData | IRInstr | IRBlock)
         ):
             super().__init__(var, var_type, value, name=IRFlag.DECLARE_ASSIGN)
 
@@ -251,6 +260,9 @@ class IRBlockFlag(BaseIRBlockFlag):
     ARGS = auto()
     ARGS_VALUES = auto()
     OPTION = auto()
+    RETURN = auto()
+    MODIFIER = auto()
+    MODIFIER_ARGS = auto()
 
 
 class IRBlock(BaseIRBlock):
@@ -260,8 +272,24 @@ class IRBlock(BaseIRBlock):
 
     _name: IRBlockFlag
 
-    def __repr__(self) -> str:
-        return "\n".join(str(k) for k in self.args)
+    def add(self, block: Any) -> None:
+        if self._has_correct_block(block):
+            self.args += block,
+
+        else:
+            raise ValueError(
+                f"block type invalid ({type(block)}) for {self.__class__.__name__}"
+            )
+
+    @abstractmethod
+    def _has_correct_block(self, block: Any) -> bool:
+        raise NotImplementedError()
+
+    def __len__(self) -> int:
+        return len(self.args)
+
+    def __getitem__(self, item: Any) -> Any:
+        return self.args[item]
 
 
 class BodyBlock(IRBlock):
@@ -269,20 +297,30 @@ class BodyBlock(IRBlock):
 
     def __init__(self, *args: IRBlock | IRInstr):
         if all(isinstance(k, IRBlock | IRInstr) for k in args):
-            self.args = args
+            if len(args) == 1 and isinstance(args[0], BodyBlock):
+                self.args = args[0].args
+
+            else:
+                self.args = args
 
         else:
             raise ValueError(
                 f"args must be block or instruction, but got {tuple(type(k) for k in args)}"
             )
+
+    def _has_correct_block(self, block: IRBlock | IRInstr) -> bool:
+        return isinstance(block, IRBlock | IRInstr)
+
+    def __repr__(self) -> str:
+        return "\n".join(str(k) for k in self.args)
 
 
 class ArgsBlock(IRBlock):
     _name: IRBlockFlag.ARGS
-    args: tuple[IRBlock | IRInstr, ...] | tuple
+    args: tuple[WorkingData | CompositeWorkingData | IRBlock | IRInstr, ...] | tuple
 
-    def __init__(self, *args: IRInstr):
-        if all(isinstance(k, IRBlock | IRInstr) for k in args):
+    def __init__(self, *args: WorkingData | CompositeWorkingData | IRBlock | IRInstr):
+        if all(isinstance(k, WorkingData | CompositeWorkingData | IRBlock | IRInstr) for k in args):
             self.args = args
 
         else:
@@ -290,21 +328,29 @@ class ArgsBlock(IRBlock):
                 f"args must be block or instruction, but got {tuple(type(k) for k in args)}"
             )
 
+    def _has_correct_block(self, block: IRBlock | IRInstr) -> bool:
+        return isinstance(block, WorkingData | CompositeWorkingData | IRBlock | IRInstr)
+
+    def __repr__(self) -> str:
+        return " ".join(str(k) for k in self.args)
+
 
 class ArgsValuesBlock(IRBlock):
     _name: IRBlockFlag.ARGS_VALUES
-    args: tuple[Symbol, WorkingData | CompositeWorkingData | IRBlock | IRInstr] | tuple
+    args: tuple[
+              Symbol | CompositeSymbol | ModifierBlock, WorkingData | CompositeWorkingData | IRBlock | IRInstr
+          ] | tuple
 
     def __init__(
         self,
-        *args: tuple[Symbol, WorkingData | CompositeWorkingData | IRBlock | IRInstr]
+        *args: tuple[Symbol | CompositeSymbol | ModifierBlock, WorkingData | CompositeWorkingData | IRBlock | IRInstr]
     ):
         if all(
-            isinstance(k[0], Symbol)
+            isinstance(k[0], Symbol | CompositeSymbol | ModifierBlock)
             and isinstance(k[1], WorkingData | CompositeWorkingData | IRBlock | IRInstr)
             for k in args
         ):
-            self.args = args
+            self.args = args[0]
 
         else:
             raise ValueError(
@@ -312,10 +358,33 @@ class ArgsValuesBlock(IRBlock):
                 f" block or instruction, but got {tuple(type(k) for k in args)}"
             )
 
+    def _has_correct_block(
+        self,
+        block: tuple[Symbol | CompositeSymbol | ModifierBlock, WorkingData | CompositeWorkingData | IRBlock | IRInstr]
+    ) -> bool:
+        return (
+            isinstance(block[0], Symbol | CompositeSymbol | ModifierBlock)
+            and isinstance(block[1], WorkingData | CompositeWorkingData | IRBlock | IRInstr)
+        )
+
+    @property
+    def arg(self) -> Symbol | CompositeSymbol | ModifierBlock:
+        return self.args[0]
+
+    @property
+    def value(self) -> WorkingData | CompositeWorkingData | IRBlock | IRInstr:
+        return self.args[1]
+
+    def __repr__(self) -> str:
+        return f"ARG-VALUE#[{self.arg}:{self.value}]"
+
 
 class OptionBlock(IRBlock):
     _name: IRBlockFlag.OPTION
-    args: tuple[WorkingData | CompositeWorkingData | IRBlock | IRInstr, IRBlock | IRInstr] | tuple
+    args: tuple[
+              tuple[WorkingData | CompositeWorkingData | IRBlock | IRInstr, ...],
+              IRBlock | IRInstr
+          ] | tuple
 
     def __init__(
         self,
@@ -324,124 +393,149 @@ class OptionBlock(IRBlock):
     ):
         if (
             isinstance(option, WorkingData | CompositeWorkingData | IRBlock | IRInstr)
-            and isinstance(block, IRBlock | IRInstr)
+            and isinstance(block, WorkingData | CompositeWorkingData | IRBlock | IRInstr)
         ):
             self.args = (option, block)
 
         else:
             raise ValueError(f"option ({type(option)}) or block ({type(block)}) is of wrong type.")
 
+    def _has_correct_block(
+        self,
+        block: WorkingData | CompositeWorkingData | IRBlock | IRInstr
+    ) -> bool:
+        return isinstance(block, WorkingData | CompositeWorkingData | IRBlock | IRInstr)
+
+    @property
+    def option(self) -> WorkingData | CompositeWorkingData | IRBlock | IRInstr:
+        return self.args[0]
+
+    @property
+    def block(self) -> WorkingData | CompositeWorkingData | IRBlock | IRInstr:
+        return self.args[1]
+
+    def __repr__(self) -> str:
+        return f"OPTION#[{self.args[0]}:{self.args[1]}]"
+
+
+class ReturnBlock(IRBlock):
+    _name: IRBlockFlag.RETURN
+    args: tuple[WorkingData | CompositeWorkingData | IRBlock | IRInstr, ...]
+
+    def __init__(self, *args: WorkingData | CompositeWorkingData | IRBlock | IRInstr):
+        if all(
+            isinstance(k, WorkingData | CompositeWorkingData | IRBlock | IRInstr) for k in args
+        ):
+            self.args = args
+
+        else:
+            raise ValueError("return block got wrong object types")
+
+    def _has_correct_block(self, block: Any) -> bool:
+        return all(
+            isinstance(k, WorkingData | CompositeWorkingData | IRBlock | IRInstr) for k in block
+        )
+
+    def __repr__(self) -> str:
+        return f"RETURN#[{' '.join(str(k) for k in self.args)}]"
+
+
+class ModifierBlock(IRBlock):
+    _name: IRBlockFlag.MODIFIER
+    args: tuple[Symbol | CompositeSymbol | IRInstr, ModifierArgsBlock]
+
+    def __init__(self, obj: Symbol | CompositeSymbol | IRInstr, args: ModifierArgsBlock):
+        if (
+            isinstance(obj, Symbol | CompositeSymbol | IRInstr)
+            and isinstance(args, ModifierArgsBlock)
+        ):
+            self.args = (obj, args)
+
+        else:
+            raise ValueError(f"modifier block cannot have types {type(obj)} and {type(args)}")
+
+    def _has_correct_block(self, block: ModifierArgsBlock) -> bool:
+        return isinstance(block, ModifierArgsBlock)
+
+    @property
+    def obj(self) -> Symbol | CompositeSymbol | IRInstr:
+        return self.args[0]
+
+    @property
+    def mods(self) -> ModifierArgsBlock:
+        return self.args[1]
+
+    def __repr__(self) -> str:
+        return f"{self.obj}<{self.mods}>"
+
+
+class ModifierArgsBlock(IRBlock):
+    _name: IRBlockFlag.MODIFIER_ARGS
+    args: tuple[ArgsValuesBlock, ...] | tuple
+
+    def __init__(
+        self,
+        args: tuple[Symbol | CompositeSymbol, ...] | ArgsValuesBlock | ArgsBlock
+    ):
+        if (
+            isinstance(args, ArgsValuesBlock | ArgsBlock)
+            or all(isinstance(k, Symbol | CompositeSymbol) for k in args)
+        ):
+            self.args = args
+
+        else:
+            raise ValueError(
+                f"modifier args must be made of ArgsValuesBlock elements, "
+                f"not {[type(k) for k in args]}"
+            )
+
+    def _has_correct_block(self, block: ArgsValuesBlock) -> bool:
+        return isinstance(block,  ArgsValuesBlock)
+
+    def __repr__(self) -> str:
+        return " ".join(str(k) for k in self.args)
+
 
 ##############
 # IR CLASSES #
 ##############
 
-# class IRTypes:
-#     """
-#     This class holds types definitions as ``BaseTypeDataStructure`` objects.
-#
-#     Together with ``IRFns`` and ``IR`` it provides the base for an IR object
-#     picturing the full code.
-#     """
-#
-#     table: dict[Symbol | CompositeSymbol, BaseTypeDataStructure]
-#
-#     def __init__(self):
-#         self.table = dict()
-#
-#     def add(self, name: Symbol | CompositeSymbol, data: BaseTypeDataStructure) -> None:
-#         if (
-#             isinstance(name, Symbol | CompositeSymbol)
-#             and isinstance(data, BaseTypeDataStructure)
-#         ):
-#             if name not in self.table:
-#                 self.table[name] = data
-#
-#         else:
-#             raise ValueError(
-#                 f"type {name} must be symbol/composite symbol and its data must be "
-#                 f"known type structure"
-#             )
-#
-#     def get(
-#         self,
-#         name: Symbol | CompositeSymbol,
-#         default: Any | None = None
-#     ) -> BaseTypeDataStructure | Any | None:
-#         return self.table.get(name, default)
-#
-#     def __contains__(self, item: Symbol | CompositeSymbol) -> bool:
-#         return item in self.table
-#
-#     def __len__(self) -> int:
-#         return len(self.table)
-#
-#     def __repr__(self) -> str:
-#         content = "\n      ".join(f"{v}" for v in self.table.values())
-#         return f"\n  types:\n      {content}\n"
-#
-#
-# class IRFns:
-#     """
-#     This class holds functions definitions as ``BaseFnKey`` for function
-#     entry (function name, type and arguments) and its body (content).
-#
-#     Together with ``IRTypes`` and ``IR`` it provides the base for an IR object
-#     picturing the full code.
-#     """
-#
-#     table: dict[BaseFnKey | BaseFnCheck, IRBlock]
-#
-#     def __init__(self):
-#         self.table = dict()
-#
-#     def add(self, fn_entry: BaseFnKey, data: IRBlock) -> None:
-#         if (
-#             fn_entry not in self.table
-#             and isinstance(fn_entry, BaseFnKey)
-#             and isinstance(data, IRBlock)
-#         ):
-#             self.table[fn_entry] = data
-#
-#     def get(self, fn_entry: BaseFnCheck, default: Any | None = None) -> IRBlock:
-#         return self.table.get(fn_entry, default)
-#
-#     def __len__(self) -> int:
-#         return len(self.table)
-#
-#     def __repr__(self) -> str:
-#         content = "\n      ".join(f"{k}:\n          {v}" for k, v in self.table.items())
-#         return f"\n  fns:\n      {content}\n"
+class IR(BaseIR):
+    """Hold all the IR content: IR blocks, IR types and IR functions"""
 
+    main: BodyBlock | None
+    types: TypeTable | None
+    fns: FnTable | None
 
-# class IR:
-#     """Hold all the IR content: IR blocks, IR types and IR functions"""
-#
-#     main: IRBlock | None
-#     types: IRTypes | None
-#     fns: IRFns | None
-#
-#     def __init__(
-#         self,
-#         *,
-#         main: IRBlock | None = None,
-#         types: IRTypes | None = None,
-#         fns: IRFns | None = None
-#     ):
-#         if (
-#             isinstance(main, IRBlock)
-#             or main is None
-#             and isinstance(types, IRTypes)
-#             or types is None
-#             and isinstance(fns, IRFns)
-#             or fns is None
-#         ):
-#             self.main = main
-#             self.types = types
-#             self.fns = fns
-#
-#     def __repr__(self) -> str:
-#         return f"\n[ir/start]{self.types}{self.fns}{self.main}[ir/end]\n"
+    def __init__(
+        self,
+        *,
+        main: BodyBlock | None = None,
+        types: TypeTable | None = None,
+        fns: FnTable | None = None
+    ):
+        if (
+            isinstance(main, BodyBlock)
+            or main is None
+            and isinstance(types, TypeTable)
+            or types is None
+            and isinstance(fns, FnTable)
+            or fns is None
+        ):
+            self.main = main
+            self.types = types
+            self.fns = fns
+
+    def __repr__(self) -> str:
+        if self.main is not None:
+            main = ""
+            for k in self.main:
+                main += f"       {k}\n"
+
+        else:
+            main = ""
+
+        return f"\n[ir/start]{self.types}{self.fns}  main:\n{main}\n[ir/end]\n"
 
 
 ##################
@@ -449,7 +543,7 @@ class OptionBlock(IRBlock):
 ##################
 
 def _declare_variable(
-    var: Symbol,
+    var: Symbol | ModifierBlock,
     mem: MemoryManager
 ) -> None:
     """
@@ -457,9 +551,13 @@ def _declare_variable(
     and store it on the heap memory from the current scope.
 
     Args:
-        var: the actual variable; must be a ``Symbol`` object
+        var: the actual variable; must be a ``Symbol`` or ``ModifierBlock`` object
         mem: ``MemoryManager`` object
     """
+
+    # we just need the variable for now
+    var = var.args[0] if isinstance(var, ModifierBlock) else var
+    # TODO: make use of the modifier property through a new code logic later
 
     if var in mem.scope.heap[mem.cur_scope]:
         raise ValueError(f"{var} already in heap; cannot re-declare variable")
@@ -486,18 +584,18 @@ def _declare_variable(
             )
 
         case BaseTypeDataStructure():
-            variable = var_type(
+            var_container = var_type(
                 var_name=var,
                 # TODO: use the modifier to define variable flag and define a default
                 flag=VariableKind.MUTABLE
             )
 
-            match variable:
+            match var_container:
                 case BaseDataContainer():
-                    mem.scope.heap[mem.cur_scope].set(key=var, value=variable)
+                    mem.scope.heap[mem.cur_scope].set(key=var, value=var_container)
 
                 case _:
-                    raise ValueError(f"{variable}")
+                    raise ValueError(f"{var_container}")
 
         case _:
             raise NotImplementedError(

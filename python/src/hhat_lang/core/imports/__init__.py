@@ -1,5 +1,5 @@
 from __future__ import annotations
 
-from .types_importer import TypeImporter
+from .importer import TypeImporter
 
 __all__ = ["TypeImporter"]

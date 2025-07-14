@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any, Iterable
 
+from hhat_lang.core.code.new_ir import BaseIRBlock
 from hhat_lang.core.data.core import Symbol, CompositeSymbol
 
 
@@ -127,6 +129,22 @@ class BaseFnCheck:
         self._name = fn_name
         self._args_types = args_types
 
+    @property
+    def name(self) -> Symbol:
+        return self._name
+
+    def transform(self, fn_type: Symbol | CompositeSymbol, args_names: tuple[Symbol, ...]):
+        if (
+            all(isinstance(p, Symbol) for p in args_names)
+            and isinstance(fn_type, Symbol | CompositeSymbol)
+        ):
+            return BaseFnKey(
+                fn_name=self.name,
+                fn_type=fn_type,
+                args_types=self._args_types,
+                args_names=args_names,
+            )
+
     def __hash__(self) -> int:
         return hash((self._name, self._args_types))
 
@@ -138,3 +156,87 @@ class BaseFnCheck:
             )
 
         return False
+
+    def __repr__(self) -> str:
+        args = ", ".join(f"{t}" for t in self._args_types)
+        return f"fn(name={self.name}, args=({args}))"
+
+
+class FnDef:
+    """
+    Function definition class
+    """
+
+    _name: Symbol | BaseIRBlock
+    _type: Symbol | CompositeSymbol | None
+    _args: BaseIRBlock
+    _body: BaseIRBlock
+
+    def __init__(
+        self,
+        fn_name: Symbol | BaseIRBlock,
+        fn_args: BaseIRBlock,
+        fn_body: BaseIRBlock,
+        fn_type: Symbol | CompositeSymbol | None = None,
+    ):
+        if (
+            isinstance(fn_name, Symbol | BaseIRBlock)
+            and isinstance(fn_args, BaseIRBlock)
+            and isinstance(fn_body, BaseIRBlock)
+            and isinstance(fn_type, Symbol | CompositeSymbol) or fn_type is None
+        ):
+            self._name = fn_name
+            self._args = fn_args
+            self._body = fn_body
+            self._type = fn_type or Symbol("null")
+
+        else:
+            raise ValueError(
+                f"some fn definition type is wrong: "
+                f"{type(fn_name)} {type(fn_args)} {type(fn_body)} {type(fn_body)}"
+            )
+    @property
+    def name(self) -> Symbol | BaseIRBlock:
+        return self._name
+
+    @property
+    def type(self) -> Symbol | CompositeSymbol:
+        return self._type
+
+    @property
+    def args(self) -> BaseIRBlock:
+        return self._args
+
+    @property
+    def body(self) -> BaseIRBlock:
+        return self._body
+
+    @property
+    @lru_cache
+    def arg_names(self) -> tuple[Symbol, ...]:
+        return tuple(k.arg for k in self.args)
+
+    @property
+    @lru_cache
+    def arg_values(self) -> tuple[Symbol | CompositeSymbol, ...]:
+        return tuple(k.value for k in self.args)
+
+    def get_fn_entry(self) -> BaseFnKey:
+        return BaseFnKey(
+            fn_name=self.name,
+            fn_type=self.type,
+            args_types=self.arg_values,
+            args_names=self.arg_names,
+        )
+
+    def get_fn_check(self) -> BaseFnCheck:
+        return BaseFnCheck(
+            fn_name=self.name,
+            args_types=self.arg_values
+        )
+
+    def __repr__(self) -> str:
+        args = " ".join(str(k) for k in self.args)
+        fn_header = f"FN-DEF#:NAME#[{self.name}] ARGS#[{args}] TYPE#[{self.type or 'null'}]"
+        body = "\n            ".join(str(k) for k in self.body)
+        return f"{fn_header}" + "\n            " + f"{body}" + "\n"
