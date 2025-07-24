@@ -5,7 +5,8 @@ from enum import auto
 from typing import Any, cast
 
 from hhat_lang.core.code.new_ir import (
-    BaseIRBlock, BaseIRBlockFlag,
+    BaseIRBlock,
+    BaseIRBlockFlag,
 )
 from hhat_lang.core.code.core import BaseIR, BaseIRFlag, BaseIRInstr
 from hhat_lang.core.data.core import (
@@ -21,10 +22,12 @@ from hhat_lang.core.data.utils import VariableKind
 from hhat_lang.core.data.variable import BaseDataContainer
 from hhat_lang.core.error_handlers.errors import HeapInvalidKeyError
 from hhat_lang.core.memory.core import (
-    MemoryManager, TypeTable, FnTable,
+    MemoryManager,
 )
+from hhat_lang.core.code.symbol_table import SymbolTable, RefTable
 from hhat_lang.core.types.abstract_base import BaseTypeDataStructure
-from hhat_lang.core.types.builtin_types import builtins_types, compatible_types
+from hhat_lang.core.types.builtin_types import builtins_types
+from hhat_lang.core.types.builtin_conversion import compatible_types
 
 
 ###########################
@@ -272,19 +275,6 @@ class IRBlock(BaseIRBlock):
 
     _name: IRBlockFlag
 
-    def add(self, block: Any) -> None:
-        if self._has_correct_block(block):
-            self.args += block,
-
-        else:
-            raise ValueError(
-                f"block type invalid ({type(block)}) for {self.__class__.__name__}"
-            )
-
-    @abstractmethod
-    def _has_correct_block(self, block: Any) -> bool:
-        raise NotImplementedError()
-
     def __len__(self) -> int:
         return len(self.args)
 
@@ -308,9 +298,6 @@ class BodyBlock(IRBlock):
                 f"args must be block or instruction, but got {tuple(type(k) for k in args)}"
             )
 
-    def _has_correct_block(self, block: IRBlock | IRInstr) -> bool:
-        return isinstance(block, IRBlock | IRInstr)
-
     def __repr__(self) -> str:
         return "\n".join(str(k) for k in self.args)
 
@@ -327,9 +314,6 @@ class ArgsBlock(IRBlock):
             raise ValueError(
                 f"args must be block or instruction, but got {tuple(type(k) for k in args)}"
             )
-
-    def _has_correct_block(self, block: IRBlock | IRInstr) -> bool:
-        return isinstance(block, WorkingData | CompositeWorkingData | IRBlock | IRInstr)
 
     def __repr__(self) -> str:
         return " ".join(str(k) for k in self.args)
@@ -357,15 +341,6 @@ class ArgsValuesBlock(IRBlock):
                 f"args must be symbols and values must be symbol, composite symbols,"
                 f" block or instruction, but got {tuple(type(k) for k in args)}"
             )
-
-    def _has_correct_block(
-        self,
-        block: tuple[Symbol | CompositeSymbol | ModifierBlock, WorkingData | CompositeWorkingData | IRBlock | IRInstr]
-    ) -> bool:
-        return (
-            isinstance(block[0], Symbol | CompositeSymbol | ModifierBlock)
-            and isinstance(block[1], WorkingData | CompositeWorkingData | IRBlock | IRInstr)
-        )
 
     @property
     def arg(self) -> Symbol | CompositeSymbol | ModifierBlock:
@@ -400,12 +375,6 @@ class OptionBlock(IRBlock):
         else:
             raise ValueError(f"option ({type(option)}) or block ({type(block)}) is of wrong type.")
 
-    def _has_correct_block(
-        self,
-        block: WorkingData | CompositeWorkingData | IRBlock | IRInstr
-    ) -> bool:
-        return isinstance(block, WorkingData | CompositeWorkingData | IRBlock | IRInstr)
-
     @property
     def option(self) -> WorkingData | CompositeWorkingData | IRBlock | IRInstr:
         return self.args[0]
@@ -431,11 +400,6 @@ class ReturnBlock(IRBlock):
         else:
             raise ValueError("return block got wrong object types")
 
-    def _has_correct_block(self, block: Any) -> bool:
-        return all(
-            isinstance(k, WorkingData | CompositeWorkingData | IRBlock | IRInstr) for k in block
-        )
-
     def __repr__(self) -> str:
         return f"RETURN#[{' '.join(str(k) for k in self.args)}]"
 
@@ -453,9 +417,6 @@ class ModifierBlock(IRBlock):
 
         else:
             raise ValueError(f"modifier block cannot have types {type(obj)} and {type(args)}")
-
-    def _has_correct_block(self, block: ModifierArgsBlock) -> bool:
-        return isinstance(block, ModifierArgsBlock)
 
     @property
     def obj(self) -> Symbol | CompositeSymbol | IRInstr:
@@ -489,9 +450,6 @@ class ModifierArgsBlock(IRBlock):
                 f"not {[type(k) for k in args]}"
             )
 
-    def _has_correct_block(self, block: ArgsValuesBlock) -> bool:
-        return isinstance(block,  ArgsValuesBlock)
-
     def __repr__(self) -> str:
         return " ".join(str(k) for k in self.args)
 
@@ -503,28 +461,29 @@ class ModifierArgsBlock(IRBlock):
 class IR(BaseIR):
     """Hold all the IR content: IR blocks, IR types and IR functions"""
 
-    main: BodyBlock | None
-    types: TypeTable | None
-    fns: FnTable | None
+    _main: BodyBlock | None
 
     def __init__(
         self,
         *,
+        ref_table: RefTable,
+        symbol_table: SymbolTable | None = None,
         main: BodyBlock | None = None,
-        types: TypeTable | None = None,
-        fns: FnTable | None = None
     ):
         if (
             isinstance(main, BodyBlock)
             or main is None
-            and isinstance(types, TypeTable)
-            or types is None
-            and isinstance(fns, FnTable)
-            or fns is None
+            and isinstance(symbol_table, SymbolTable)
+            or symbol_table is None
+            and isinstance(ref_table, RefTable)
         ):
-            self.main = main
-            self.types = types
-            self.fns = fns
+            if main is None and symbol_table or main and symbol_table is None:
+                self._main = main
+                self._symbol_table = symbol_table
+                self._ref_table = ref_table
+
+            else:
+                raise ValueError("cannot have main IR block and symbol table in the same IR")
 
     def __repr__(self) -> str:
         if self.main is not None:
@@ -535,7 +494,18 @@ class IR(BaseIR):
         else:
             main = ""
 
-        return f"\n[ir/start]{self.types}{self.fns}  main:\n{main}\n[ir/end]\n"
+        if self.symbol_table is not None:
+            st = ""
+            for k in self.symbol_table.type:
+                st += f"       {k}\n"
+
+            for k in self.symbol_table.fn:
+                st += f"       {k}\n"
+
+        else:
+            st = ""
+
+        return f"\n[ir/start]\n{st}  main:\n{main}\n[ir/end]\n"
 
 
 ##################
@@ -547,7 +517,7 @@ def _declare_variable(
     mem: MemoryManager
 ) -> None:
     """
-    Convenient function for resolving variable declaration during the interpreter execution
+    Convenient function for resolving variable declaration during the execution execution
     and store it on the heap memory from the current scope.
 
     Args:
@@ -811,7 +781,7 @@ def _handle_call_instr(
             if fn_block is None:
                 raise ValueError(f"function {caller} with arg type signature {args_types} not found")
 
-            # FIXME: depth_counter value needs to come from the interpreter global depth counter
+            # FIXME: depth_counter value needs to come from the execution global depth counter
             fn_scope = mem.new_scope(fn_block, depth_counter=1)
             _resolve_fn_block(fn_block, mem)
             mem.free_last_scope(to_return=True)

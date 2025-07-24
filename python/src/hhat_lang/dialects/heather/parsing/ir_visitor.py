@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from itertools import chain
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from arpeggio import visit_parse_tree, NonTerminal, PTNodeVisitor, SemanticActionResults, Terminal
 from arpeggio.cleanpeg import ParserPEG
 
-from hhat_lang.core.data.fn_def import FnDef, BaseFnKey, BaseFnCheck
+from hhat_lang.core.data.fn_def import FnDef, BaseFnCheck
 from hhat_lang.core.imports.importer import FnImporter
 from hhat_lang.core.types.abstract_base import Size, BaseTypeDataStructure, QSize
 from hhat_lang.core.types.builtin_types import builtins_types
@@ -25,11 +25,7 @@ from hhat_lang.core.data.core import (
     CompositeWorkingData,
 )
 from hhat_lang.core.imports import TypeImporter
-from hhat_lang.core.memory.core import (
-    MemoryManager,
-    TypeTable,
-    FnTable,
-)
+from hhat_lang.core.code.symbol_table import TypeTable, FnTable
 from hhat_lang.dialects.heather.code.simple_ir_builder.new_ir import (
     IR,
     IRBlock,
@@ -40,7 +36,6 @@ from hhat_lang.dialects.heather.code.simple_ir_builder.new_ir import (
     DeclareInstr,
     ArgsBlock,
     ArgsValuesBlock,
-    IRFlag,
     ModifierBlock,
     ModifierArgsBlock,
     BodyBlock,
@@ -48,15 +43,6 @@ from hhat_lang.dialects.heather.code.simple_ir_builder.new_ir import (
     ReturnBlock,
     DeclareAssignInstr,
 )
-# from hhat_lang.dialects.heather.code.simple_ir_builder.ir import (
-#     IR,
-#     IRBlock,
-#     IRFlag,
-#     IRBaseInstr,
-#     IRTypes,
-#     IRFns, IRProgram, IRCast, IRCall, IRArgs, IRArgValue,
-# )
-from hhat_lang.dialects.heather.interpreter.classical.executor import Evaluator
 from hhat_lang.dialects.heather.parsing.utils import TypesDict, FnsDict, ImportDicts
 
 

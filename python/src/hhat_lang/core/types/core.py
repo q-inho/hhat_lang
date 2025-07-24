@@ -13,6 +13,7 @@ from hhat_lang.core.error_handlers.errors import (
     TypeStructError,
 )
 from hhat_lang.core.types.abstract_base import BaseTypeDataStructure, QSize, Size
+from hhat_lang.core.types.utils import BaseTypeEnum
 from hhat_lang.core.utils import SymbolOrdered
 
 
@@ -32,6 +33,8 @@ def is_valid_member(
 
 
 class SingleDS(BaseTypeDataStructure):
+    """Class to define data structure for single types."""
+
     def __init__(
         self,
         name: Symbol | CompositeSymbol,
@@ -42,10 +45,9 @@ class SingleDS(BaseTypeDataStructure):
         self._size = size
         self._qsize = qsize
         self._type_container: SymbolOrdered = SymbolOrdered()
+        self._ds_type = BaseTypeEnum.SINGLE
 
-    def add_member(
-        self, member_type: BaseTypeDataStructure, _member_name: None = None
-    ) -> SingleDS | ErrorHandler:
+    def add_member(self, member_type: BaseTypeDataStructure) -> SingleDS | ErrorHandler:
         if not is_valid_member(self, member_type.name):
             return TypeQuantumOnClassicalError(member_type.name, self.name)
 
@@ -62,9 +64,10 @@ class SingleDS(BaseTypeDataStructure):
         return VariableTemplate(
             var_name=var_name,
             type_name=self.name,
-            type_ds=SymbolOrdered({
+            ds_data=SymbolOrdered({
                 next(iter(self._type_container.values())): self._type_container
             }),
+            ds_type=self._ds_type,
             flag=flag,
         )
 
@@ -97,6 +100,8 @@ class ArrayDS(BaseTypeDataStructure):
 
 
 class StructDS(BaseTypeDataStructure):
+    """Class to define data structure for struct types."""
+
     def __init__(
         self,
         name: Symbol | CompositeSymbol,
@@ -107,6 +112,7 @@ class StructDS(BaseTypeDataStructure):
         self._size = size
         self._qsize = qsize
         self._type_container: SymbolOrdered = SymbolOrdered()
+        self._ds_type = BaseTypeEnum.STRUCT
 
     def add_member(
         self, member_type: BaseTypeDataStructure, member_name: Symbol | CompositeSymbol
@@ -125,13 +131,14 @@ class StructDS(BaseTypeDataStructure):
         self,
         *,
         var_name: Symbol,
-        flag: VariableKind = VariableKind.MUTABLE,
+        flag: VariableKind = VariableKind.IMMUTABLE,
         **_: Any
     ) -> BaseDataContainer | ErrorHandler:
         return VariableTemplate(
             var_name=var_name,
             type_name=self._name,
-            type_ds=self._type_container,
+            ds_data=self._type_container,
+            ds_type=self._ds_type,
             flag=flag,
         )
 
@@ -141,6 +148,8 @@ class StructDS(BaseTypeDataStructure):
 
 
 class UnionDS(BaseTypeDataStructure):
+    """Class to define data structure for union types."""
+
     def __init__(
         self,
         name: Symbol | CompositeSymbol,
@@ -151,6 +160,7 @@ class UnionDS(BaseTypeDataStructure):
         self._size = size
         self._qsize = qsize
         self._type_container = SymbolOrdered()
+        self._ds_type = BaseTypeEnum.UNION
 
     def add_member(self, member_type: str, member_name: str) -> UnionDS:
         raise NotImplementedError()
@@ -159,18 +169,21 @@ class UnionDS(BaseTypeDataStructure):
         self,
         *,
         var_name: Symbol,
-        flag: VariableKind = VariableKind.MUTABLE,
+        flag: VariableKind = VariableKind.IMMUTABLE,
         **_: Any
     ) -> BaseDataContainer | ErrorHandler:
         return VariableTemplate(
             var_name=var_name,
             type_name=self._name,
-            type_ds=self._type_container,
+            ds_data=self._type_container,
+            ds_type=self._ds_type,
             flag=flag
         )
 
 
 class EnumDS(BaseTypeDataStructure):
+    """Class to define data structure for enum types."""
+
     def __init__(
         self,
         name: Symbol | CompositeSymbol,
@@ -181,20 +194,56 @@ class EnumDS(BaseTypeDataStructure):
         self._size = size
         self._qsize = qsize
         self._type_container = SymbolOrdered()
+        self._ds_type = BaseTypeEnum.ENUM
 
-    def add_member(self, member_type: str, member_name: str) -> EnumDS:
-        raise NotImplementedError()
+    def _check_member(self, member: BaseTypeDataStructure | Symbol) -> Symbol | str:
+        match member:
+            case Symbol():
+                return member.value
+
+            case BaseTypeDataStructure():
+                return member.name
+
+            case _:
+                raise NotImplementedError()
+
+    def add_member(self, member: BaseTypeDataStructure | Symbol) -> EnumDS | ErrorHandler:
+        member_name = self._check_member(member)
+
+        if is_valid_member(self, member_name):
+            self._type_container[member_name] = member
+            return self
+
+        return TypeQuantumOnClassicalError(member_name, self.name)
+
 
     def __call__(
         self,
-        *args: Any,
-        var_name: str,
-        flag: VariableKind = VariableKind.MUTABLE,
-        **kwargs: dict[WorkingData, WorkingData | BaseDataContainer],
+        *,
+        var_name: Symbol,
+        flag: VariableKind = VariableKind.IMMUTABLE,
+        **_: Any
     ) -> BaseDataContainer | ErrorHandler:
         return VariableTemplate(
             var_name=var_name,
             type_name=self._name,
-            type_ds=self._type_container,
+            ds_data=self._type_container,
+            ds_type=self._ds_type,
             flag=flag
         )
+
+
+class RemoteUnionDS(BaseTypeDataStructure):
+    """Class to define data structure for remote union types"""
+
+    def add_member(self, *args: Any, **kwargs: Any) -> Any | ErrorHandler:
+        raise NotImplementedError()
+
+    def __call__(
+        self,
+        *,
+        var_name: Symbol,
+        flag: VariableKind,
+        **kwargs: Any
+    ) -> BaseDataContainer | ErrorHandler:
+        raise NotImplementedError()

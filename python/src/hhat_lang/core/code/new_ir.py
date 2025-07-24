@@ -17,9 +17,14 @@ class BaseIRBlock(ABC):
     def name(self) -> BaseIRBlockFlag:
         return self._name
 
-    @abstractmethod
-    def add(self, block: Any) -> None:
-        raise NotImplementedError()
+    def __hash__(self) -> int:
+        return hash((self._name, self.args))
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, BaseIRBlock):
+            return hash(self) == hash(other)
+
+        return False
 
     def __iter__(self) -> Iterable:
         yield from self.args

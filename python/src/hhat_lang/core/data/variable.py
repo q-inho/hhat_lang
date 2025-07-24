@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Iterable
 
-from hhat_lang.core.data.core import CompositeSymbol, Symbol, WorkingData
+from hhat_lang.core.data.core import CompositeSymbol, Symbol, WorkingData, CoreLiteral
 from hhat_lang.core.data.utils import VariableKind, isquantum
 from hhat_lang.core.error_handlers.errors import (
     ContainerVarError,
@@ -13,6 +13,7 @@ from hhat_lang.core.error_handlers.errors import (
     VariableFreeingBorrowedError,
     VariableWrongMemberError,
 )
+from hhat_lang.core.types.utils import BaseTypeEnum
 from hhat_lang.core.utils import SymbolOrdered
 
 
@@ -23,6 +24,9 @@ class BaseDataContainer(ABC):
     _type: Symbol | CompositeSymbol
     _ds: SymbolOrdered
     """_ds: data from data structure, e.g. member types and names"""
+
+    _ds_type: BaseTypeEnum
+    """_ds_type: type enum from the data structure"""
 
     _data: SymbolOrdered
     """_data: where data will actually be stored"""
@@ -108,11 +112,71 @@ class BaseDataContainer(ABC):
 
         return False
 
+    @staticmethod
+    def _get_single_ds_member(attr: Symbol | CompositeSymbol) -> Symbol | CompositeSymbol:
+        return attr
+
+    def _get_struct_ds_member(self, attr: Symbol | CompositeSymbol) -> Symbol | CompositeSymbol:
+        return self._ds[attr]
+
+    def _get_correct_ds_member(self, attr: Symbol | CompositeSymbol) -> Symbol | CompositeSymbol:
+        if self._ds_type is BaseTypeEnum.SINGLE:
+            return self._get_single_ds_member(attr)
+
+        if self._ds_type is BaseTypeEnum.STRUCT:
+            return self._get_struct_ds_member(attr)
+
+        raise NotImplementedError()
+
+    def _get_data_type(self, data: WorkingData) -> Symbol:
+        match data:
+            case Symbol():
+                return data
+
+            case CoreLiteral():
+                return Symbol(data.type)
+
+            case _:
+                raise NotImplementedError()
+
+    def _check_and_assign_enum_val(
+        self, data: Symbol | CompositeSymbol | BaseDataContainer
+    ) -> bool:
+        """
+        Check data from enum type and assign to variable container.
+
+        Args:
+            - data: enum member as a ``Symbol``, ``CompositeSymbol`` or a struct data
+
+        Returns:
+            ``True`` if successfully checked and assigned enum data to variable container.
+        """
+
+        match data:
+            case Symbol():
+                if data in self._ds:
+                    self._data[0] = data
+                    return True
+
+            case CompositeSymbol():
+                if Symbol(data.value[-1]) in self._ds:
+                    self._data[0] = Symbol(data.value[-1])
+                    return True
+
+            case BaseDataContainer():
+                if data.type in self._ds:
+                    # TODO: implement it for a struct
+                    raise NotImplementedError()
+
+            case _:
+                raise NotImplementedError()
+
+        return False
+
     def _check_and_assign_ds_vals(
         self,
         data: Any,
-        attr_type: Symbol,
-        # tmp_container: SymbolOrdered
+        attr_type: Symbol | CoreLiteral,
     ) -> bool:
         """
         Check data structure when passing values only (equivalent to `fn(*args)`) and
@@ -127,7 +191,9 @@ class BaseDataContainer(ABC):
             False if there is no attribute type. Otherwise, true.
         """
 
-        if data.type == self._ds[attr_type]:
+        data_type = self._get_data_type(data)
+
+        if data_type == self._get_correct_ds_member(attr_type):
             # is quantum or array data structure
             if data.is_quantum or self._check_array_prop(data):
                 if attr_type in self._ds:
@@ -152,7 +218,6 @@ class BaseDataContainer(ABC):
         self,
         key: Symbol,
         value: Any,
-        # tmp_container: SymbolOrdered
     ) -> bool:
         """
         Check data structure when passing args and values, (equivalent to `fn(**args)`).
@@ -185,10 +250,16 @@ class BaseDataContainer(ABC):
         return False
 
     @abstractmethod
-    def assign(self, *args: Any, **kwargs: Any) -> None | ErrorHandler: ...
+    def assign(self, *args: Any, **kwargs: Any) -> None | ErrorHandler:
+        """Assign a data to the variable container"""
+
+        raise NotImplementedError()
 
     @abstractmethod
-    def get(self, *args: Any, **kwargs: Any) -> Any | ErrorHandler: ...
+    def get(self, *args: Any, **kwargs: Any) -> Any | ErrorHandler:
+        """Retrieve variable content"""
+
+        raise NotImplementedError()
 
     def __call__(
         self,
@@ -204,10 +275,12 @@ class BaseDataContainer(ABC):
         return f"{self.name}"
 
     @abstractmethod
-    def borrow(self, *args: Any, **kwargs: Any) -> None | ErrorHandler: ...
+    def borrow(self, *args: Any, **kwargs: Any) -> None | ErrorHandler:
+        raise NotImplementedError()
 
     @abstractmethod
-    def transfer(self, *args: Any, **kwargs: Any) -> None | ErrorHandler: ...
+    def transfer(self, *args: Any, **kwargs: Any) -> None | ErrorHandler:
+        raise NotImplementedError()
 
     def free(self) -> None | ErrorHandler:
         """Freeing the container (program going out of container's scope)."""
@@ -230,31 +303,32 @@ class VariableTemplate:
         cls,
         var_name: Symbol,
         type_name: Symbol | CompositeSymbol,
-        type_ds: SymbolOrdered,
+        ds_data: SymbolOrdered,
+        ds_type: BaseTypeEnum,
         flag: VariableKind = VariableKind.IMMUTABLE,
     ) -> BaseDataContainer | ErrorHandler:
         # quantum variables are, at least for now, always appendable and thus mutable
         if isquantum(var_name) and isquantum(type_name):
-            return AppendableVariable(var_name, type_name, type_ds, True)
+            return AppendableVariable(var_name, type_name, ds_data, ds_type, True)
 
         if not isquantum(var_name) and not isquantum(type_name):
             match flag:
                 # constant, at least for now, cannot be quantum
                 case VariableKind.CONSTANT:
-                    return ConstantData(var_name, type_name, type_ds)
+                    return ConstantData(var_name, type_name, ds_data, ds_type)
 
                 case VariableKind.APPENDABLE:
-                    return AppendableVariable(var_name, type_name, type_ds, False)
+                    return AppendableVariable(var_name, type_name, ds_data, ds_type, False)
 
                 case VariableKind.MUTABLE:
-                    return MutableVariable(var_name, type_name, type_ds)
+                    return MutableVariable(var_name, type_name, ds_data, ds_type)
 
                 case VariableKind.IMMUTABLE:
-                    return ImmutableVariable(var_name, type_name, type_ds)
+                    return ImmutableVariable(var_name, type_name, ds_data, ds_type)
 
                 # default for now is immutable
                 case _:
-                    return ImmutableVariable(var_name, type_name, type_ds)
+                    return ImmutableVariable(var_name, type_name, ds_data, ds_type)
 
         return VariableCreationError(var_name, type_name)
 
@@ -264,11 +338,13 @@ class ConstantData(BaseDataContainer):
         self,
         var_name: Symbol,
         type_name: Symbol | CompositeSymbol,
-        type_ds: SymbolOrdered,
+        ds_data: SymbolOrdered,
+        ds_type: BaseTypeEnum
     ):
         self._name = var_name
         self._type = type_name
-        self._ds = type_ds
+        self._ds = ds_data
+        self._ds_type = ds_type
         self._data = SymbolOrdered()
         self._assigned = False
         self._is_constant = True
@@ -304,11 +380,13 @@ class ImmutableVariable(BaseDataContainer):
         self,
         var_name: Symbol,
         type_name: Symbol | CompositeSymbol,
-        type_ds: SymbolOrdered,
+        ds_data: SymbolOrdered,
+        ds_type: BaseTypeEnum
     ):
         self._name = var_name
         self._type = type_name
-        self._ds = type_ds
+        self._ds = ds_data
+        self._ds_type = ds_type
         self._data = SymbolOrdered()
         self._assigned = False
         self._is_constant = False
@@ -326,6 +404,10 @@ class ImmutableVariable(BaseDataContainer):
         **kwargs: SymbolOrdered,
     ) -> None | ErrorHandler:
         if not self._assigned:
+            if self._ds_type is BaseTypeEnum.ENUM:
+                self._check_and_assign_enum_val(args[0])
+                return None
+
             if len(args) == len(self._ds):
                 for k, d in zip(args, self._ds):
                     if not self._check_and_assign_ds_vals(k, d):
@@ -342,6 +424,10 @@ class ImmutableVariable(BaseDataContainer):
         return ContainerVarIsImmutableError(self.name)
 
     def get(self, member: Symbol | None = None) -> Any | ErrorHandler:
+        if self._ds_type == BaseTypeEnum.ENUM:
+            # enum type only have a single data stored from its members
+            return self._data[0]
+
         member = next(iter(self._ds.keys())) if member is None else member
 
         if member in self._data:
@@ -361,11 +447,13 @@ class MutableVariable(BaseDataContainer):
         self,
         var_name: Symbol,
         type_name: Symbol | CompositeSymbol,
-        type_ds: SymbolOrdered,
+        ds_data: SymbolOrdered,
+        ds_type: BaseTypeEnum
     ):
         self._name = var_name
         self._type = type_name
-        self._ds = type_ds
+        self._ds = ds_data
+        self._ds_type = ds_type
         self._data = SymbolOrdered()
         self._assigned = False
         self._is_constant = False
@@ -380,6 +468,10 @@ class MutableVariable(BaseDataContainer):
     def assign(
         self, *args: Any, **kwargs: dict[WorkingData, WorkingData | BaseDataContainer]
     ) -> None | ErrorHandler:
+        if self._ds_type == BaseTypeEnum.ENUM:
+            self._check_and_assign_enum_val(args[0])
+            return None
+
         if len(args) == len(self._ds):
             for k, d in zip(args, self._ds):
                 if not self._check_and_assign_ds_vals(k, d):
@@ -400,6 +492,9 @@ class MutableVariable(BaseDataContainer):
         return None
 
     def get(self, member: Symbol | None = None) -> Any | ErrorHandler:
+        if self._ds_type == BaseTypeEnum.ENUM:
+            return self._data[0]
+
         member = next(iter(self._ds.keys())) if member is None else member
 
         if member in self._data:
@@ -419,12 +514,14 @@ class AppendableVariable(BaseDataContainer):
         self,
         var_name: Symbol,
         type_name: Symbol | CompositeSymbol,
-        type_ds: SymbolOrdered,
+        ds_data: SymbolOrdered,
+        ds_type: BaseTypeEnum,
         is_quantum: bool,
     ):
         self._name = var_name
         self._type = type_name
-        self._ds = type_ds
+        self._ds = ds_data
+        self._ds_type = ds_type
         self._data = SymbolOrdered()
         self._assigned = False
         self._is_constant = False
@@ -441,6 +538,10 @@ class AppendableVariable(BaseDataContainer):
         *args: Any,
         **kwargs: SymbolOrdered,
     ) -> None | ErrorHandler:
+        if self._ds_type == BaseTypeEnum.ENUM:
+            self._check_and_assign_enum_val(args[0])
+            return None
+
         if len(args) == len(self._ds):
             for k, d in zip(args, self._ds):
                 if not self._check_and_assign_ds_vals(k, d):
@@ -457,6 +558,9 @@ class AppendableVariable(BaseDataContainer):
         return None
 
     def get(self, member: Symbol | None = None) -> Any | ErrorHandler:
+        if self._ds_type == BaseTypeEnum.ENUM:
+            return self._data[0]
+
         member = next(iter(self._ds.keys())) if member is None else member
 
         if member in self._data:

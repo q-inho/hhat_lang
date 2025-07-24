@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Iterable, cast
+from typing import Any, Callable, Iterable
 
 from hhat_lang.core.data.core import CoreLiteral, Symbol, WorkingData
 from hhat_lang.core.data.utils import VariableKind
 from hhat_lang.core.data.variable import BaseDataContainer, VariableTemplate
 from hhat_lang.core.error_handlers.errors import (
-    CastError,
-    CastIntOverflowError,
-    CastNegToUnsignedError,
     ErrorHandler,
-    TypeSingleError,
 )
 from hhat_lang.core.types.abstract_base import BaseTypeDataStructure, QSize, Size
 from hhat_lang.core.utils import SymbolOrdered
@@ -76,9 +72,10 @@ class BuiltinSingleDS(BaseTypeDataStructure):
         return VariableTemplate(
             var_name=var_name,
             type_name=self.name,
-            type_ds=SymbolOrdered({
+            ds_data=SymbolOrdered({
                 next(iter(self._type_container.values())): self._type_container
             }),
+            ds_type=self._ds_type,
             flag=flag,
         )
 
@@ -87,47 +84,3 @@ class BuiltinSingleDS(BaseTypeDataStructure):
 
     def __iter__(self) -> Iterable:
         raise NotImplementedError()
-
-
-##################
-# CAST FUNCTIONS #
-##################
-
-
-def int_to_uN(
-    ds: BuiltinSingleDS, data: CoreLiteral | BaseDataContainer
-) -> CoreLiteral | BaseDataContainer | ErrorHandler:
-    if ds.bitsize is not None:
-        max_value = 1 << ds.bitsize.size
-
-        if isinstance(data, CoreLiteral):
-            if data < 0:
-                return CastNegToUnsignedError(data, ds.members[0][1])
-
-            if data < max_value:
-                lit_type = cast(str, ds.name.value)
-                return CoreLiteral(data.value, lit_type)
-
-            return CastIntOverflowError(data, ds.name)
-
-        if isinstance(data, BaseDataContainer):
-            val = data.get()
-            if data.type in int_types:
-                match val:
-                    case ErrorHandler():
-                        return val
-
-                    case WorkingData():
-                        if val < 0:
-                            return CastNegToUnsignedError(val, ds.members[0][1])
-
-                        if val < max_value:
-                            lit_type = cast(str, ds.name.value)
-                            return CoreLiteral(val.value, lit_type)
-
-                        return CastIntOverflowError(val, ds.name)
-
-            return CastError(ds.name, val)
-
-    # something else?
-    raise NotImplementedError()

@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from hhat_lang.core.memory.core import SymbolTable
+from hhat_lang.core.code.symbol_table import SymbolTable
 from hhat_lang.core.data.fn_def import BaseFnKey, BaseFnCheck
-from hhat_lang.core.data.core import WorkingData, Symbol, CompositeSymbol, CoreLiteral
-from hhat_lang.core.code.ir import InstrIRFlag
+from hhat_lang.core.data.core import Symbol
 from hhat_lang.dialects.heather.code.simple_ir_builder.ir import (
     IRBlock,
     IRCall,

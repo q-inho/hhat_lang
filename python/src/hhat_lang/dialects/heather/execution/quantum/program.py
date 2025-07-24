@@ -21,7 +21,7 @@ The quantum program workflow is as follows:
 backend support (lower level counterparts, LLC)
 
     - If classical instructions are supported, they will be handled by those
-    - If not, they will fall back into this dialect's classical branch interpreter
+    - If not, they will fall back into this dialect's classical branch execution
 
 - Memory is handled by the dialect and shared when appropriate to the LCC
 - All the quantum-specific optimizations are handled by the LLC
@@ -42,7 +42,8 @@ from hhat_lang.core.error_handlers.errors import ErrorHandler
 from hhat_lang.core.execution.abstract_base import BaseEvaluator
 from hhat_lang.core.execution.abstract_program import BaseProgram
 from hhat_lang.core.lowlevel.abstract_qlang import BaseLowLevelQLang
-from hhat_lang.core.memory.core import BaseStack, IndexManager, Stack, SymbolTable
+from hhat_lang.core.memory.core import BaseStack, IndexManager, Stack
+from hhat_lang.core.code.symbol_table import SymbolTable
 from hhat_lang.dialects.heather.code.simple_ir_builder.ir import IRBlock
 
 # TODO: the imports below must come from the config file, not hardcoded

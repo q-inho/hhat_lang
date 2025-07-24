@@ -396,7 +396,7 @@ class IR:
     """
     This class creates a new intermediate representation object that should
     hold the whole program code. The code can be only in terms of ``WorkingData``
-    and ``IRBlock`` objects. An interpreter or compiler should evaluate its content.
+    and ``IRBlock`` objects. An execution or compiler should evaluate its content.
 
     Together with ``IRFns`` and ``IRTypes`` it provides the base for an IR object
     picturing the full code.

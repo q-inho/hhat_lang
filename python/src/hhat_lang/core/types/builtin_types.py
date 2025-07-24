@@ -76,14 +76,3 @@ builtins_types = {
     Symbol("@u4"): QU4,
 }
 """a dictionary where keys are the available types as str and the values are their classes"""
-
-
-compatible_types = {
-    Symbol("int"): (
-        Symbol("u16"), Symbol("u32"), Symbol("u64"), Symbol("i16"), Symbol("i32"), Symbol("i64")
-    ),
-    Symbol("float"): (Symbol("f32"), Symbol("f64")),
-    Symbol("@int"): (Symbol("@u2"), Symbol("@u3"), Symbol("@u4"))
-}
-"""dictionary to establish the relation between generic types (``int``, ``float``, ``@int``)
-as their possible convertible types"""

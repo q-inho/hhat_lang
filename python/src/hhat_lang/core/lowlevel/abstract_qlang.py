@@ -6,7 +6,8 @@ from typing import Any
 from hhat_lang.core.data.core import WorkingData
 from hhat_lang.core.error_handlers.errors import ErrorHandler, IndexInvalidVarError
 from hhat_lang.core.execution.abstract_base import BaseEvaluator
-from hhat_lang.core.memory.core import BaseStack, IndexManager, SymbolTable
+from hhat_lang.core.memory.core import BaseStack, IndexManager
+from hhat_lang.core.code.symbol_table import SymbolTable
 from hhat_lang.core.utils import Result
 from hhat_lang.dialects.heather.code.simple_ir_builder.ir import IRBlock
 

@@ -3,10 +3,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Iterable
 
-from hhat_lang.core.data.core import CompositeSymbol, Symbol, WorkingData
+from hhat_lang.core.data.core import CompositeSymbol, Symbol
 from hhat_lang.core.data.utils import VariableKind
-from hhat_lang.core.data.variable import BaseDataContainer, VariableTemplate
+from hhat_lang.core.data.variable import BaseDataContainer
 from hhat_lang.core.error_handlers.errors import ErrorHandler
+from hhat_lang.core.types.utils import BaseTypeEnum
 from hhat_lang.core.utils import SymbolOrdered
 
 
@@ -63,6 +64,7 @@ class BaseTypeDataStructure(ABC):
     """Base type class for data structures, such as single, struct, enum and union."""
 
     _name: Symbol | CompositeSymbol
+    _ds_type: BaseTypeEnum
     _type_container: SymbolOrdered
     _is_quantum: bool
     _is_builtin: bool
@@ -84,6 +86,10 @@ class BaseTypeDataStructure(ABC):
     @property
     def name(self) -> Symbol | CompositeSymbol:
         return self._name
+
+    @property
+    def type(self) -> BaseTypeEnum:
+        return self._ds_type
 
     @property
     def ds(self) -> SymbolOrdered:
@@ -114,7 +120,7 @@ class BaseTypeDataStructure(ABC):
         return tuple(k for k in self)
 
     @abstractmethod
-    def add_member(self, member_type: Any, member_name: Any) -> Any | ErrorHandler: ...
+    def add_member(self, *args: Any, **kwargs: Any) -> Any | ErrorHandler: ...
 
     @abstractmethod
     def __call__(

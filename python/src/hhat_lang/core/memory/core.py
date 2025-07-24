@@ -4,18 +4,19 @@ from abc import ABC, abstractmethod
 from collections import deque, OrderedDict
 from queue import LifoQueue
 from typing import Any, Hashable
-from uuid import UUID, NAMESPACE_OID
+from uuid import UUID
 
 from hhat_lang.core.code.new_ir import BaseIRBlock
+from hhat_lang.core.code.symbol_table import SymbolTable
 from hhat_lang.core.utils import gen_uuid
 from hhat_lang.core.data.core import (
     CompositeLiteral,
     CompositeMixData,
     CoreLiteral,
     Symbol,
-    WorkingData, CompositeWorkingData, CompositeSymbol,
+    WorkingData,
+    CompositeWorkingData,
 )
-from hhat_lang.core.data.fn_def import BaseFnKey, BaseFnCheck, FnDef
 from hhat_lang.core.data.variable import BaseDataContainer
 from hhat_lang.core.error_handlers.errors import (
     ErrorHandler,
@@ -24,9 +25,7 @@ from hhat_lang.core.error_handlers.errors import (
     IndexInvalidVarError,
     IndexUnknownError,
     IndexVarHasIndexesError,
-    SymbolTableInvalidKeyError,
 )
-from hhat_lang.core.types.abstract_base import BaseTypeDataStructure
 
 
 class PIDManager:
@@ -327,7 +326,7 @@ class ScopeValue:
 
         Args:
             obj: object must be hashable
-            counter: from the interpreter counter, to keep track of scope nesting
+            counter: from the execution counter, to keep track of scope nesting
         """
 
         self._value = gen_uuid(gen_uuid(obj) + counter)
@@ -418,122 +417,6 @@ class Scope:
         return None
 
 
-class TypeTable:
-    table: dict[Symbol | CompositeSymbol, BaseTypeDataStructure]
-
-    def __init__(self):
-        self.table = dict()
-
-    def add(self, name: Symbol | CompositeSymbol, data: BaseTypeDataStructure) -> None:
-        if (
-            isinstance(name, Symbol | CompositeSymbol)
-            and isinstance(data, BaseTypeDataStructure)
-        ):
-            if name not in self.table:
-                self.table[name] = data
-
-        else:
-            raise ValueError(
-                f"type {name} must be symbol/composite symbol and its data must be "
-                f"known type structure"
-            )
-
-    def get(
-        self,
-        name: Symbol | CompositeSymbol,
-        default: Any | None = None
-    ) -> BaseTypeDataStructure | Any | None:
-        return self.table.get(name, default)
-
-    def __contains__(self, item: Symbol | CompositeSymbol) -> bool:
-        return item in self.table
-
-    def __len__(self) -> int:
-        return len(self.table)
-
-    def __repr__(self) -> str:
-        content = "\n      ".join(f"{v}" for v in self.table.values())
-        return f"\n  types:\n      {content}\n"
-
-
-class FnTable:
-    """
-        This class holds functions definitions as ``BaseFnKey`` for function
-        entry (function name, type and arguments) and its body (content).
-
-        Together with ``IRTypes`` and ``IR`` it provides the base for an IR object
-        picturing the full code.
-        """
-
-    table: dict[Symbol | CompositeSymbol, dict[BaseFnKey | BaseFnCheck, FnDef]]
-
-    def __init__(self):
-        self.table = dict()
-
-    def add(self, fn_entry: BaseFnCheck, data: FnDef) -> None:
-        if isinstance(data, FnDef):
-            if isinstance(fn_entry, BaseFnCheck):
-                if fn_entry.name in self.table:
-                    self.table[fn_entry.name].update({fn_entry: data})
-
-                else:
-                    self.table[fn_entry.name] = {fn_entry: data}
-
-            elif isinstance(fn_entry, BaseFnKey):
-                new_fn_entry = BaseFnCheck(fn_name=fn_entry.name, args_types=fn_entry.args_types)
-                if fn_entry.name in self.table:
-                    self.table[fn_entry.name].update({new_fn_entry: data})
-
-                else:
-                    self.table[fn_entry.name] = {new_fn_entry: data}
-
-            else:
-                raise ValueError(f"fn_entry is of wrong type ({type(fn_entry)})")
-
-    def get(
-        self,
-        fn_entry: Symbol | CompositeSymbol | BaseFnCheck,
-        default: Any | None = None
-    ) -> FnDef | dict[BaseFnCheck, FnDef] | None:
-        match fn_entry:
-            case Symbol() | CompositeSymbol():
-                return self.table.get(fn_entry, default)
-
-            case BaseFnCheck():
-                if fn_entry.name in self.table:
-                    return self.table[fn_entry.name].get(fn_entry, default)
-
-        raise ValueError(f"cannot retrieve fn {fn_entry}")
-
-    def __len__(self) -> int:
-        return sum(len(k) for k in self.table.values())
-
-    def __repr__(self) -> str:
-        content = "\n      ".join(
-            f"{k}:\n         {v}" for h in self.table.values() for k, v in h.items()
-        )
-        return f"\n  fns:\n      {content}\n"
-
-
-class SymbolTable:
-    """To store types and functions"""
-
-    _types: TypeTable
-    _fns: FnTable
-
-    def __init__(self):
-        self._types = TypeTable()
-        self._fns = FnTable()
-
-    @property
-    def type(self) -> TypeTable:
-        return self._types
-
-    @property
-    def fn(self) -> FnTable:
-        return self._fns
-
-
 ########################
 # MEMORY MANAGER CLASS #
 ########################
@@ -579,7 +462,7 @@ class MemoryManager(BaseMemoryManager):
         else:
             raise ValueError(
                 "memory manager needs IR block object, max number of indexes and"
-                " interpreter code depth counter"
+                " execution code depth counter"
             )
 
     def new_scope(self, ir_block: BaseIRBlock, depth_counter: int) -> ScopeValue:
@@ -596,7 +479,7 @@ class MemoryManager(BaseMemoryManager):
                 self._cur_scope = self._scope.last()
 
             else:
-                # no more scope, the interpreter should have reached the end of the code
+                # no more scope, the execution should have reached the end of the code
                 # TODO: double check later what to do in this case
                 pass
 

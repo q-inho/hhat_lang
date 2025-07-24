@@ -5,7 +5,8 @@ from itertools import product
 import pytest
 from hhat_lang.core.code.ir import TypeIR
 from hhat_lang.core.data.core import CoreLiteral, Symbol
-from hhat_lang.core.memory.core import MemoryManager, SymbolTable
+from hhat_lang.core.memory.core import MemoryManager
+from hhat_lang.core.code.symbol_table import SymbolTable
 from hhat_lang.dialects.heather.code.simple_ir_builder.ir import (
     FnIR,
     IRArgs,

@@ -161,5 +161,5 @@ def test_parse_type_ir(
             pass
 
     finally:
-        # shutil.rmtree(project_root)
+        shutil.rmtree(project_root)
         pass

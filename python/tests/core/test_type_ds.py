@@ -2,14 +2,16 @@ from __future__ import annotations
 
 from collections import OrderedDict
 
-from hhat_lang.core.data.core import CoreLiteral, Symbol
+from hhat_lang.core.data.core import CoreLiteral, Symbol, CompositeSymbol
 from hhat_lang.core.error_handlers.errors import (
     TypeAndMemberNoMatchError,
     TypeQuantumOnClassicalError,
     VariableWrongMemberError,
 )
 from hhat_lang.core.types.builtin_types import QU3, U32
-from hhat_lang.core.types.core import SingleDS, StructDS
+from hhat_lang.core.types.core import SingleDS, StructDS, EnumDS
+from hhat_lang.core.types.utils import BaseTypeEnum
+
 
 # TODO: refactor the types to use `BuiltinSingleDS` or respective data
 #  types so properties can be compared and addressed properly.
@@ -85,6 +87,7 @@ def test_struct_ds_quantum() -> None:
 
     assert qvar.name == Symbol("@var")
     assert qvar.type == Symbol("@sample")
+    assert qvar._ds_type == BaseTypeEnum.STRUCT
     assert qvar.is_quantum is True
     assert qvar.data == OrderedDict({Symbol("counts"): lit_8, Symbol("@d"): [lit_q2]})
     assert qvar.get(Symbol("counts")) == lit_8 and qvar.get(Symbol("@d")) == [lit_q2]
@@ -102,3 +105,24 @@ def test_struct_ds_quantum() -> None:
 def test_struct_ds_quantum_wrong() -> None:
     qtype = StructDS(name=Symbol("@type"))
     assert isinstance(qtype.add_member(QU3, Symbol("data")), TypeAndMemberNoMatchError)
+
+
+def test_enum_ds() -> None:
+    connect_enum = CompositeSymbol(("command", "CONNECT"))
+    _connect = Symbol("CONNECT")
+    _join = Symbol("JOIN")
+    _quit = Symbol("QUIT")
+
+    command = EnumDS(name=Symbol("command"))
+    command.add_member(_connect).add_member(_join).add_member(_quit)
+
+    opt = command(var_name=Symbol("opt"))
+    opt.assign(connect_enum)
+
+    assert opt.name == Symbol("opt")
+    assert opt.type == Symbol("command")
+    assert opt._ds_type is BaseTypeEnum.ENUM
+    assert opt.data == OrderedDict({0: _connect})
+    assert opt.get() == _connect
+    assert opt.get("z") == _connect
+    assert opt.is_quantum is False

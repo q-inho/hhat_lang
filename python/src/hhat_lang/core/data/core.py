@@ -53,32 +53,14 @@ class WorkingData:
     def is_quantum(self) -> bool:
         return self._is_quantum
 
-    def _op_bitwise(self, op: str, other: Any) -> bool:
-        if isinstance(other, self.__class__):
-            return getattr(self.value, op)(other.value)
-
-        if isinstance(other, ACCEPTABLE_VALUES.get(self._type, InvalidType)):
-            return getattr(self.value, op)(other)
-
-        return False
-
     def __hash__(self) -> int:
         return hash((self.value, self.type))
 
     def __eq__(self, other: Any) -> bool:
-        return self._op_bitwise("__eq__", other)
+        if isinstance(other, self.__class__):
+            return self.value == other.value and self.type == other.type
 
-    def __le__(self, other) -> bool:
-        return self._op_bitwise("__le__", other)
-
-    def __ge__(self, other) -> bool:
-        return self._op_bitwise("__ge__", other)
-
-    def __lt__(self, other) -> bool:
-        return self._op_bitwise("__lt__", other)
-
-    def __ne__(self, other) -> bool:
-        return self._op_bitwise("__ne__", other)
+        return False
 
     def __repr__(self) -> str:
         type_txt = "" if self.type is None or self._suppress_type else f":{self.type}"
@@ -156,7 +138,7 @@ class CompositeSymbol(CompositeWorkingData):
         self._group = value
         self._type = "str"
         self._group_type = CompositeGroup.SymbolAttrs
-        self._is_quantum = True if all(k.startswith("@") for k in value) else False
+        self._is_quantum = True if value[-1].startswith("@") else False
         self._suppress_type = True
 
 
@@ -206,6 +188,30 @@ class CoreLiteral(WorkingData):
                 value = "".join(f"{ord(s):08b}" for s in self.value)
 
         return value
+
+    def _op_bitwise(self, op: str, other: Any) -> bool:
+        if isinstance(other, self.__class__):
+            return getattr(self.value, op)(other.value)
+
+        if isinstance(other, ACCEPTABLE_VALUES.get(self._type, InvalidType)):
+            return getattr(self.value, op)(other)
+
+        return False
+
+    def __eq__(self, other: Any) -> bool:
+        return self._op_bitwise("__eq__", other)
+
+    def __le__(self, other) -> bool:
+        return self._op_bitwise("__le__", other)
+
+    def __ge__(self, other) -> bool:
+        return self._op_bitwise("__ge__", other)
+
+    def __lt__(self, other) -> bool:
+        return self._op_bitwise("__lt__", other)
+
+    def __ne__(self, other) -> bool:
+        return self._op_bitwise("__ne__", other)
 
     @property
     def bin(self) -> str:
